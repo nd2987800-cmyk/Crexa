@@ -1,0 +1,6 @@
+{
+  "name": "Crexa",
+  "description": "A modern photo, video, and short-video social network platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
