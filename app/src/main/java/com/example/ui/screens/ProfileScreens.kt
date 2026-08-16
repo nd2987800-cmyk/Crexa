@@ -33,6 +33,7 @@ import com.example.data.local.entities.PostEntity
 import com.example.data.local.entities.ReelEntity
 import com.example.data.local.entities.UserEntity
 import com.example.ui.components.SimpleTopBar
+import com.example.ui.components.SmartMediaImage
 import com.example.ui.components.UserAvatar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,7 +101,9 @@ fun ProfileScreen(
                     UserAvatar(
                         avatarUrl = user?.avatarUrl ?: "",
                         username = user?.username ?: "User",
-                        size = 76.dp
+                        userId = user?.id ?: "current_user",
+                        size = 76.dp,
+                        showRing = true
                     )
 
                     Row(
@@ -253,17 +256,8 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(displayList) { post ->
-                        val resId = remember(post.mediaUrl) {
-                            when {
-                                post.mediaUrl.contains("img_sample_post_1") -> R.drawable.img_sample_post_1_1786177193097
-                                post.mediaUrl.contains("img_sample_post_2") -> R.drawable.img_sample_post_2_1786177203745
-                                post.mediaUrl.contains("img_sample_post_3") -> R.drawable.img_sample_post_3_1786177217178
-                                else -> R.drawable.img_lumina_logo_1786177176474
-                            }
-                        }
-
-                        Image(
-                            painter = painterResource(id = resId),
+                        SmartMediaImage(
+                            mediaUrl = post.mediaUrl,
                             contentDescription = post.caption,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
@@ -331,7 +325,9 @@ fun EditProfileScreen(
             UserAvatar(
                 avatarUrl = avatarUrl,
                 username = currentUser?.username ?: "User",
-                size = 90.dp
+                userId = currentUser?.id ?: "current_user",
+                size = 90.dp,
+                showRing = true
             )
 
             TextButton(onClick = { /* Pick new picture */ }) {

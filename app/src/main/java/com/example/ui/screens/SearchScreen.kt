@@ -180,7 +180,9 @@ fun SearchScreen(
                                 UserAvatar(
                                     avatarUrl = user.avatarUrl,
                                     username = user.username,
-                                    size = 46.dp
+                                    userId = user.id,
+                                    size = 46.dp,
+                                    showRing = true
                                 )
                             },
                             modifier = Modifier.clickable { onUserClick(user.id) }

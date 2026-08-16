@@ -52,7 +52,9 @@ fun StoryItemRow(
                     UserAvatar(
                         avatarUrl = currentUser?.avatarUrl ?: "",
                         username = currentUser?.username ?: "You",
-                        size = 64.dp
+                        userId = currentUser?.id ?: "current_user",
+                        size = 62.dp,
+                        showRing = true
                     )
                     Box(
                         modifier = Modifier
@@ -72,7 +74,8 @@ fun StoryItemRow(
                 }
                 Text(
                     text = "Your story",
-                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    color = Color(0xFF0F172A),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -92,16 +95,18 @@ fun StoryItemRow(
                 UserAvatar(
                     avatarUrl = author?.avatarUrl ?: "",
                     username = author?.username ?: "User",
-                    size = 64.dp,
+                    userId = author?.id ?: story.userId,
+                    size = 62.dp,
                     hasStory = true,
                     storySeen = story.isSeen
                 )
                 Text(
                     text = author?.username ?: "user",
                     style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = if (!story.isSeen) FontWeight.SemiBold else FontWeight.Normal
                     ),
+                    color = Color(0xFF0F172A),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 68.dp)

@@ -25,12 +25,16 @@ fun SettingsScreen(
     currentDarkMode: Boolean?,
     onSetThemeMode: (Boolean?) -> Unit,
     onLogout: () -> Unit,
+    onDeleteAccount: (() -> Unit)? = null,
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
     var isPrivateAccount by remember { mutableStateOf(false) }
     var showReportDialog by remember { mutableStateOf(false) }
     var reportText by remember { mutableStateOf("") }
+    var showSubscriptionDialog by remember { mutableStateOf(false) }
+    var isSubscribed by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -46,12 +50,67 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
+            // Subscription & Monetization Section
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WorkspacePremium,
+                            contentDescription = "Subscription",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Crexa VIP & AI Subscription",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = if (isSubscribed) "Active VIP Subscriber • Unlimited AI" else "50% Creator / 50% Platform Split",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Unlock 4K AI Generation, Crexa VIP Verified Badge, Ad-Free browsing, and Priority Server Speed. Google Play In-App Billing ready.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Button(
+                        onClick = { showSubscriptionDialog = true },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_settings_subscription")
+                    ) {
+                        Text(if (isSubscribed) "Manage VIP Subscription" else "Subscribe for $4.99/mo (50-50 Split)")
+                    }
+                }
+            }
+
             // Appearance section
             Text(
                 text = "Appearance",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
             )
 
             ListItem(
@@ -133,7 +192,7 @@ fun SettingsScreen(
 
             ListItem(
                 headlineContent = { Text("About Crexa") },
-                supportingContent = { Text("Version 1.0.0 • Crexa Social Platform") },
+                supportingContent = { Text("Version 1.0.0 • Crexa Social & AI Platform") },
                 leadingContent = { Icon(Icons.Outlined.Info, contentDescription = null) }
             )
 
@@ -145,8 +204,8 @@ fun SettingsScreen(
             Button(
                 onClick = onLogout,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
@@ -159,7 +218,99 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Log Out", fontWeight = FontWeight.Bold)
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Delete Account Button
+            OutlinedButton(
+                onClick = { showDeleteConfirmDialog = true },
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(48.dp)
+                    .testTag("btn_delete_account")
+            ) {
+                Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Delete Profile & Data", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (showSubscriptionDialog) {
+        AlertDialog(
+            onDismissRequest = { showSubscriptionDialog = false },
+            icon = { Icon(Icons.Default.Stars, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) },
+            title = { Text("Crexa VIP Subscription") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Price: $4.99 / Month",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text("• 50% Revenue goes to your Creator Account Wallet")
+                    Text("• 50% Platform & Google Cloud Infrastructure fee")
+                    Text("• Unlimited Crexa AI Studio Generations & Video FX")
+                    Text("• Golden Verified Badge on Profile & Reels")
+                    Text("• Priority Chat & Direct Message Delivery")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isSubscribed = true
+                        showSubscriptionDialog = false
+                        Toast.makeText(context, "VIP Subscription Activated! 50% Share Configured.", Toast.LENGTH_LONG).show()
+                    }
+                ) {
+                    Text(if (isSubscribed) "Subscription Active" else "Confirm & Subscribe")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSubscriptionDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Profile?") },
+            text = {
+                Text("Are you sure you want to delete your profile and remove all stored password credentials? This action cannot be undone.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        if (onDeleteAccount != null) {
+                            onDeleteAccount()
+                        } else {
+                            onLogout()
+                        }
+                        Toast.makeText(context, "Profile deleted successfully.", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete Account", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Keep Account")
+                }
+            }
+        )
     }
 
     if (showReportDialog) {

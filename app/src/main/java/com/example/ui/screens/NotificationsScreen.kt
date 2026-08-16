@@ -223,7 +223,9 @@ private fun ActivityItemCard(
                 UserAvatar(
                     avatarUrl = actor?.avatarUrl ?: "",
                     username = actor?.username ?: "User",
+                    userId = actor?.id ?: notification.actorUserId,
                     size = 48.dp,
+                    showRing = true,
                     onClick = onUserClick
                 )
 

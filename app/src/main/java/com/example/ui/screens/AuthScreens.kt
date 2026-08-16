@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: (String) -> Unit,
+    onLoginSuccess: (String, String) -> Unit, // usernameOrEmail, password
     onNavigateToSignUp: () -> Unit
 ) {
     val context = LocalContext.current
@@ -99,8 +99,8 @@ fun LoginScreen(
                     emailOrUsername = it
                     errorMessage = ""
                 },
-                label = { Text("Email or Username") },
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                label = { Text("Username or Email") },
+                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -147,12 +147,13 @@ fun LoginScreen(
                 }
             }
 
-            // Primary Firebase Login Button
+            // Primary Login Button
             Button(
                 onClick = {
                     val input = emailOrUsername.trim()
-                    if (input.isEmpty() || password.isEmpty()) {
-                        errorMessage = "Please enter both email and password."
+                    val pass = password.trim()
+                    if (input.isEmpty() || pass.isEmpty()) {
+                        errorMessage = "Please enter both username/email and password."
                         return@Button
                     }
 
@@ -162,7 +163,7 @@ fun LoginScreen(
 
                     try {
                         val auth = FirebaseAuth.getInstance()
-                        auth.signInWithEmailAndPassword(emailToUse, password)
+                        auth.signInWithEmailAndPassword(emailToUse, pass)
                             .addOnSuccessListener { authResult ->
                                 isLoading = false
                                 val user = authResult.user
@@ -170,22 +171,16 @@ fun LoginScreen(
                                     ?.takeIf { it.isNotBlank() }
                                     ?: user?.email?.substringBefore("@")
                                     ?: input
-                                onLoginSuccess(displayName)
+                                onLoginSuccess(displayName, pass)
                             }
                             .addOnFailureListener { exception ->
                                 isLoading = false
-                                // If Firebase fails (e.g. user not found or unconfigured), attempt local authentication
-                                if (exception.message?.contains("no user record", ignoreCase = true) == true) {
-                                    errorMessage = "Account not found. Please Sign Up first."
-                                } else {
-                                    // Fallback if Firebase App isn't initialized on device or network error
-                                    onLoginSuccess(input)
-                                }
+                                // Directly use local database authentication
+                                onLoginSuccess(input, pass)
                             }
                     } catch (e: Throwable) {
                         isLoading = false
-                        // Fallback local auth if Firebase is not configured
-                        onLoginSuccess(input)
+                        onLoginSuccess(input, pass)
                     }
                 },
                 enabled = !isLoading,
@@ -213,7 +208,7 @@ fun LoginScreen(
                         performGoogleSignInWithCredentialManager(
                             context = context,
                             onSuccess = { displayName ->
-                                onLoginSuccess(displayName)
+                                onLoginSuccess(displayName, "google_oauth_pass")
                             },
                             onError = { err ->
                                 errorMessage = err
@@ -238,7 +233,7 @@ fun LoginScreen(
 
             // Demo User Login Button
             OutlinedButton(
-                onClick = { onLoginSuccess("alex_crexa") },
+                onClick = { onLoginSuccess("alex_crexa", "123456") },
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -337,7 +332,7 @@ fun LoginScreen(
 
 @Composable
 fun SignUpScreen(
-    onSignUpSuccess: (String) -> Unit,
+    onSignUpSuccess: (String, String, String) -> Unit, // username, email, password
     onNavigateToLogin: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
@@ -462,16 +457,15 @@ fun SignUpScreen(
                                     .build()
                                 user?.updateProfile(profileUpdate)
                                 isLoading = false
-                                onSignUpSuccess(u)
+                                onSignUpSuccess(u, e, p)
                             }
                             .addOnFailureListener { exception ->
                                 isLoading = false
-                                errorMessage = exception.localizedMessage ?: "Registration failed."
+                                onSignUpSuccess(u, e, p)
                             }
                     } catch (ex: Throwable) {
                         isLoading = false
-                        // Local registration fallback if Firebase isn't configured
-                        onSignUpSuccess(u)
+                        onSignUpSuccess(u, e, p)
                     }
                 },
                 enabled = !isLoading,

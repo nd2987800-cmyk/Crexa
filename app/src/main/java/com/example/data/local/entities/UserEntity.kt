@@ -10,6 +10,8 @@ data class UserEntity(
     val fullName: String,
     val bio: String,
     val avatarUrl: String,
+    val passwordHash: String = "",
+    val email: String = "",
     val followersCount: Int = 0,
     val followingCount: Int = 0,
     val postsCount: Int = 0,

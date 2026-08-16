@@ -14,6 +14,7 @@ sealed class Screen(val route: String) {
     object EditProfile : Screen("edit_profile")
     object Settings : Screen("settings")
     object Messages : Screen("messages")
+    object AiStudio : Screen("ai_studio")
     data class DirectChat(val userId: String) : Screen("direct_chat/$userId")
     data class Comments(val postId: String) : Screen("comments/$postId")
     data class UserProfile(val userId: String) : Screen("user_profile/$userId")

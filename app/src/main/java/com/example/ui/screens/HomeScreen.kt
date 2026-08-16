@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,8 +10,10 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import com.example.data.local.entities.PostEntity
 import com.example.data.local.entities.StoryEntity
 import com.example.data.local.entities.UserEntity
@@ -30,6 +33,7 @@ fun HomeScreen(
     onOpenSearch: () -> Unit,
     onOpenMessages: () -> Unit,
     onOpenCreate: () -> Unit,
+    onOpenAiStudio: () -> Unit = {},
     onOpenStory: (Int) -> Unit,
     onUserClick: (String) -> Unit,
     onLikePost: (PostEntity) -> Unit,
@@ -41,11 +45,13 @@ fun HomeScreen(
     val userMap = remember(users) { users.associateBy { it.id } }
 
     Scaffold(
+        containerColor = Color.White,
         topBar = {
             CrexaHeaderBar(
                 onOpenSearch = onOpenSearch,
                 onOpenMessages = onOpenMessages,
-                onOpenCreate = onOpenCreate
+                onOpenCreate = onOpenCreate,
+                onOpenAiStudio = onOpenAiStudio
             )
         }
     ) { innerPadding ->
@@ -57,12 +63,15 @@ fun HomeScreen(
             },
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.White)
                 .padding(innerPadding)
         ) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .testTag("home_feed_list")
+                    .background(Color.White)
+                    .testTag("home_feed_list"),
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
                 // Stories Header
                 item {
@@ -73,7 +82,11 @@ fun HomeScreen(
                         onStoryClick = onOpenStory,
                         onCreateStoryClick = onOpenCreate
                     )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(
+                        color = Color(0xFFF1F5F9),
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                 }
 
                 // Posts List
@@ -106,7 +119,6 @@ fun HomeScreen(
                         },
                         onReportBlockUser = onReportBlockUser
                     )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 }
             }
         }

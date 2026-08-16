@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.entities.ReelEntity
 import com.example.data.local.entities.UserEntity
+import com.example.ui.components.SmartMediaImage
 import com.example.ui.components.UserAvatar
 import com.example.ui.theme.DarkOverlayGradient
 import kotlinx.coroutines.delay
@@ -161,17 +162,8 @@ fun ReelPageItem(
             }
     ) {
         // Reel Video / Thumbnail display
-        val drawableId = remember(reel.thumbnailUrl) {
-            when {
-                reel.thumbnailUrl.contains("img_sample_post_1") -> com.example.R.drawable.img_sample_post_1_1786177193097
-                reel.thumbnailUrl.contains("img_sample_post_2") -> com.example.R.drawable.img_sample_post_2_1786177203745
-                reel.thumbnailUrl.contains("img_sample_post_3") -> com.example.R.drawable.img_sample_post_3_1786177217178
-                else -> com.example.R.drawable.img_crexa_brand_logo_1786179516858
-            }
-        }
-
-        Image(
-            painter = painterResource(id = drawableId),
+        SmartMediaImage(
+            mediaUrl = if (reel.videoUrl.isNotBlank()) reel.videoUrl else reel.thumbnailUrl,
             contentDescription = reel.caption,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -355,7 +347,9 @@ fun ReelPageItem(
                 UserAvatar(
                     avatarUrl = author?.avatarUrl ?: "",
                     username = author?.username ?: "User",
+                    userId = author?.id ?: reel.userId,
                     size = 38.dp,
+                    showRing = true,
                     onClick = { author?.let { onUserClick(it.id) } }
                 )
 

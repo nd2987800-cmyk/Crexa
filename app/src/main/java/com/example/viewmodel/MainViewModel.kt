@@ -156,6 +156,30 @@ class MainViewModel(private val repository: CrexaRepository) : ViewModel() {
         repository.setThemeMode(isDark)
     }
 
+    fun loginWithPassword(usernameOrEmail: String, password: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.loginWithCredentials(usernameOrEmail, password)
+            if (result.isSuccess) {
+                onResult(true, null)
+                navigateTo(Screen.Home)
+            } else {
+                onResult(false, result.exceptionOrNull()?.localizedMessage ?: "Invalid credentials")
+            }
+        }
+    }
+
+    fun registerWithPassword(username: String, email: String, password: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.registerUser(username, email, password)
+            if (result.isSuccess) {
+                onResult(true, null)
+                navigateTo(Screen.Home)
+            } else {
+                onResult(false, result.exceptionOrNull()?.localizedMessage ?: "Registration failed")
+            }
+        }
+    }
+
     fun login(username: String) {
         viewModelScope.launch {
             repository.loginUser(username)
@@ -165,6 +189,19 @@ class MainViewModel(private val repository: CrexaRepository) : ViewModel() {
 
     fun signup(username: String) {
         login(username)
+    }
+
+    fun deleteAccount(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.delete()
+            } catch (e: Throwable) {
+                // Ignore if not in Firebase
+            }
+            repository.deleteCurrentAccount()
+            navigateTo(Screen.Login)
+            onComplete()
+        }
     }
 
     fun logout() {

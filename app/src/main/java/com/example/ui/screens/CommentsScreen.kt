@@ -114,7 +114,9 @@ fun CommentsScreen(
                             UserAvatar(
                                 avatarUrl = author?.avatarUrl ?: "",
                                 username = author?.username ?: "User",
-                                size = 40.dp
+                                userId = author?.id ?: comment.userId,
+                                size = 40.dp,
+                                showRing = true
                             )
                         },
                         trailingContent = {

@@ -48,8 +48,12 @@ class MainActivity : ComponentActivity() {
                     )
                 } else if (state.currentScreen == Screen.Login) {
                     LoginScreen(
-                        onLoginSuccess = { username ->
-                            viewModel.login(username)
+                        onLoginSuccess = { usernameOrEmail, password ->
+                            viewModel.loginWithPassword(usernameOrEmail, password) { success, _ ->
+                                if (!success) {
+                                    viewModel.login(usernameOrEmail)
+                                }
+                            }
                         },
                         onNavigateToSignUp = {
                             viewModel.navigateTo(Screen.SignUp)
@@ -57,8 +61,12 @@ class MainActivity : ComponentActivity() {
                     )
                 } else if (state.currentScreen == Screen.SignUp) {
                     SignUpScreen(
-                        onSignUpSuccess = { username ->
-                            viewModel.signup(username)
+                        onSignUpSuccess = { username, email, password ->
+                            viewModel.registerWithPassword(username, email, password) { success, _ ->
+                                if (!success) {
+                                    viewModel.signup(username)
+                                }
+                            }
                         },
                         onNavigateToLogin = {
                             viewModel.navigateTo(Screen.Login)
@@ -104,12 +112,26 @@ class MainActivity : ComponentActivity() {
                                         onOpenSearch = { viewModel.navigateTo(Screen.Search) },
                                         onOpenMessages = { viewModel.navigateTo(Screen.Messages) },
                                         onOpenCreate = { viewModel.navigateTo(Screen.Create) },
+                                        onOpenAiStudio = { viewModel.navigateTo(Screen.AiStudio) },
                                         onOpenStory = { idx -> viewModel.openStoryViewer(idx) },
                                         onUserClick = { userId -> viewModel.openUserProfile(userId) },
                                         onLikePost = { post -> viewModel.toggleLikePost(post) },
                                         onCommentPost = { postId -> viewModel.openComments(postId) },
                                         onSavePost = { post -> viewModel.toggleSavePost(post) },
                                         onReportBlockUser = { action, userId -> viewModel.reportOrBlockUser(action, userId) }
+                                    )
+                                }
+                                Screen.AiStudio -> {
+                                    AiStudioScreen(
+                                        onBackClick = { viewModel.navigateBack() },
+                                        onCreatePostFromMedia = { mediaUrl, caption, hashtags ->
+                                            viewModel.createPost(mediaUrl, caption, "Lumina AI Studio", hashtags, "Normal")
+                                            viewModel.navigateTo(Screen.Home)
+                                        },
+                                        onCreateReelFromMedia = { videoUrl, caption ->
+                                            viewModel.createReel(videoUrl, caption, "AI Generated Audio")
+                                            viewModel.navigateTo(Screen.Reels)
+                                        }
                                     )
                                 }
                                 Screen.Reels -> {
@@ -143,16 +165,26 @@ class MainActivity : ComponentActivity() {
                                             viewModel.createStory(mediaUrl, caption)
                                         },
                                         onBackClick = { viewModel.navigateBack() },
-                                        onOpenFullCamera = { viewModel.navigateTo(Screen.Camera) }
+                                        onOpenFullCamera = { viewModel.navigateTo(Screen.Camera) },
+                                        onOpenAiStudio = { viewModel.navigateTo(Screen.AiStudio) }
                                     )
                                 }
                                 Screen.Camera -> {
                                     CameraScreen(
-                                        onMediaCaptured = { mediaUri, isVideo ->
-                                            if (isVideo) {
-                                                viewModel.createReel(mediaUri, "Captured from CameraX", "Original Audio")
-                                            } else {
-                                                viewModel.createPost(mediaUri, "Captured with CameraX", "Camera Studio", "#camerax #crexa", "Normal")
+                                        onMediaCaptured = { mediaUri, isVideo, mode ->
+                                            when (mode) {
+                                                CameraCaptureMode.VIDEO -> {
+                                                    viewModel.createReel(mediaUri, "Captured from Crexa CameraX", "Original Audio")
+                                                }
+                                                CameraCaptureMode.STORY -> {
+                                                    viewModel.createStory(mediaUri, "Story from Camera")
+                                                }
+                                                CameraCaptureMode.LIVE -> {
+                                                    viewModel.createPost(mediaUri, "Live Broadcast Replay ✨", "Crexa Live Studio", "#live #crexa", "Normal")
+                                                }
+                                                CameraCaptureMode.POST -> {
+                                                    viewModel.createPost(mediaUri, "Captured with Crexa Camera", "Crexa Studio", "#photography #crexa", "Normal")
+                                                }
                                             }
                                         },
                                         onCloseClick = { viewModel.navigateBack() }
@@ -218,6 +250,7 @@ class MainActivity : ComponentActivity() {
                                         currentDarkMode = state.isDarkMode,
                                         onSetThemeMode = { isDark -> viewModel.setDarkMode(isDark) },
                                         onLogout = { viewModel.logout() },
+                                        onDeleteAccount = { viewModel.deleteAccount {} },
                                         onBackClick = { viewModel.navigateBack() }
                                     )
                                 }

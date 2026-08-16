@@ -17,7 +17,7 @@ import com.example.data.local.entities.*
         NotificationEntity::class,
         MessageEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class CrexaDatabase : RoomDatabase() {

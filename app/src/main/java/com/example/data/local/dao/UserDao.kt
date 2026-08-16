@@ -15,6 +15,15 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE id = :userId")
     suspend fun getUserById(userId: String): UserEntity?
 
+    @Query("SELECT * FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1")
+    suspend fun getUserByUsername(username: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE LOWER(username) = LOWER(:query) OR LOWER(email) = LOWER(:query) LIMIT 1")
+    suspend fun getUserByUsernameOrEmail(query: String): UserEntity?
+
+    @Query("UPDATE users SET isCurrentUser = 0")
+    suspend fun clearCurrentUserFlag()
+
     @Query("SELECT * FROM users WHERE isCurrentUser = 1 LIMIT 1")
     fun getCurrentUserFlow(): Flow<UserEntity?>
 

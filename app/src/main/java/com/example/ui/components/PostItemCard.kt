@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.entities.PostEntity
 import com.example.data.local.entities.UserEntity
+import com.example.ui.theme.CrexaPurple
+import com.example.ui.theme.UserThemeManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -47,13 +49,20 @@ fun PostItemCard(
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showDoubleTapHeart by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val authorIdentity = remember(author?.id, author?.username) {
+        UserThemeManager.getColorForUser(author?.id ?: post.userId, author?.username ?: "")
+    }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(0.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag("post_card_${post.id}")
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -63,7 +72,7 @@ fun PostItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -73,37 +82,50 @@ fun PostItemCard(
                     UserAvatar(
                         avatarUrl = author?.avatarUrl ?: "",
                         username = author?.username ?: "User",
-                        size = 38.dp
+                        userId = author?.id ?: post.userId,
+                        size = 38.dp,
+                        showRing = true
                     )
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = author?.username ?: "unknown",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                text = author?.username ?: "user",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                ),
+                                color = Color(0xFF0F172A)
                             )
                             if (author?.isVerified == true) {
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = "Verified",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
+                                    tint = authorIdentity.primary,
+                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                         }
                         if (post.location.isNotBlank()) {
                             Text(
                                 text = post.location,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = Color(0xFF64748B)
                             )
                         }
                     }
                 }
 
                 Box {
-                    IconButton(onClick = { showOptionsMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More Options")
+                    IconButton(
+                        onClick = { showOptionsMenu = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More Options",
+                            tint = Color(0xFF64748B)
+                        )
                     }
                     DropdownMenu(
                         expanded = showOptionsMenu,
@@ -137,13 +159,13 @@ fun PostItemCard(
                 }
             }
 
-            // Post Media (Double tap to like)
+            // Post Media with subtle clean corners
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(380.dp)
-                    .background(Color.Black)
+                    .background(Color(0xFFF8FAFC))
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onDoubleTap = {
@@ -159,33 +181,19 @@ fun PostItemCard(
                         )
                     }
             ) {
-                // Display photo or sample asset
-                val drawableId = remember(post.mediaUrl) {
-                    when {
-                        post.mediaUrl.contains("img_sample_post_1") -> com.example.R.drawable.img_sample_post_1_1786177193097
-                        post.mediaUrl.contains("img_sample_post_2") -> com.example.R.drawable.img_sample_post_2_1786177203745
-                        post.mediaUrl.contains("img_sample_post_3") -> com.example.R.drawable.img_sample_post_3_1786177217178
-                        else -> com.example.R.drawable.img_crexa_brand_logo_1786179516858
-                    }
-                }
-
-                Image(
-                    painter = painterResource(id = drawableId),
+                SmartMediaImage(
+                    mediaUrl = post.mediaUrl,
                     contentDescription = post.caption,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
 
                 // Double tap like heart animation
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = showDoubleTapHeart,
-                    enter = scaleIn(animationSpec = spring()),
-                    exit = scaleOut()
-                ) {
+                if (showDoubleTapHeart) {
                     Icon(
                         imageVector = Icons.Filled.Favorite,
                         contentDescription = "Liked",
-                        tint = Color.White.copy(alpha = 0.9f),
+                        tint = Color.White.copy(alpha = 0.95f),
                         modifier = Modifier.size(96.dp)
                     )
                 }
@@ -197,7 +205,7 @@ fun PostItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
@@ -207,20 +215,31 @@ fun PostItemCard(
                         Icon(
                             imageVector = if (post.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                             contentDescription = "Like",
-                            tint = if (post.isLiked) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
+                            tint = if (post.isLiked) Color(0xFFEF4444) else Color(0xFF1E293B),
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                     IconButton(
                         onClick = onCommentClick,
                         modifier = Modifier.testTag("btn_comment_${post.id}")
                     ) {
-                        Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Comments")
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Comments",
+                            tint = Color(0xFF1E293B),
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                     IconButton(
                         onClick = onShareClick,
                         modifier = Modifier.testTag("btn_share_${post.id}")
                     ) {
-                        Icon(Icons.Outlined.Send, contentDescription = "Share")
+                        Icon(
+                            imageVector = Icons.Outlined.Send,
+                            contentDescription = "Share",
+                            tint = Color(0xFF1E293B),
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
 
@@ -231,7 +250,8 @@ fun PostItemCard(
                     Icon(
                         imageVector = if (post.isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                         contentDescription = "Save",
-                        tint = if (post.isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        tint = if (post.isSaved) CrexaPurple else Color(0xFF1E293B),
+                        modifier = Modifier.size(26.dp)
                     )
                 }
             }
@@ -240,7 +260,8 @@ fun PostItemCard(
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)) {
                 Text(
                     text = "${post.likesCount} likes",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF0F172A)
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -249,11 +270,13 @@ fun PostItemCard(
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "${author?.username ?: ""} ",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF0F172A)
                         )
                         Text(
                             text = post.caption,
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF1E293B)
                         )
                     }
                 }
@@ -262,8 +285,8 @@ fun PostItemCard(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = post.hashtags.split(",").joinToString(" ") { if (it.startsWith("#")) it else "#$it" },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        color = authorIdentity.primary
                     )
                 }
 
@@ -272,7 +295,7 @@ fun PostItemCard(
                     Text(
                         text = "View all ${post.commentsCount} comments",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color(0xFF64748B),
                         modifier = Modifier.clickable { onCommentClick() }
                     )
                 }
@@ -280,11 +303,12 @@ fun PostItemCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "2 HOURS AGO",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                    color = Color(0xFF94A3B8)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }
+

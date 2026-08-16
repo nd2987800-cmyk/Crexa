@@ -1,15 +1,19 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.net.Uri
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -17,11 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -29,22 +35,38 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.gemini.GeminiService
 import com.example.ui.components.SimpleTopBar
+import com.example.ui.components.SmartMediaImage
+import com.example.ui.theme.CrexaPurple
+import com.example.ui.theme.StoryGradient
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CreatePostScreen(
     onCreatePost: (mediaUrl: String, caption: String, location: String, hashtags: String, filter: String) -> Unit,
     onCreateReel: (videoUrl: String, caption: String, audioTitle: String) -> Unit,
     onCreateStory: (mediaUrl: String, caption: String) -> Unit,
     onBackClick: () -> Unit,
-    onOpenFullCamera: () -> Unit = {}
+    onOpenFullCamera: () -> Unit = {},
+    onOpenAiStudio: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Post, 1 = Reel, 2 = Story
-    var selectedSource by remember { mutableStateOf(0) } // 0 = Camera, 1 = Gallery
+    val scope = rememberCoroutineScope()
+    val geminiService = remember { GeminiService() }
 
-    var selectedMediaUrl by remember { mutableStateOf("android.resource://com.aistudio.lumina.social/drawable/img_sample_post_1_1786177193097") }
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Post, 1 = Reel, 2 = Story, 3 = Live
+    var selectedSource by remember { mutableStateOf(1) } // 0 = Camera, 1 = Gallery
+
+    var selectedMediaUrl by remember {
+        mutableStateOf("android.resource://com.aistudio.lumina.social/drawable/img_sample_post_1_1786177193097")
+    }
+    var isDeviceMediaSelected by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("Normal") }
 
     var caption by remember { mutableStateOf("") }
@@ -52,39 +74,112 @@ fun CreatePostScreen(
     var hashtags by remember { mutableStateOf("") }
     var audioTitle by remember { mutableStateOf("") }
 
+    // Live Streaming State
+    var isLiveActive by remember { mutableStateOf(false) }
+    var liveViewerCount by remember { mutableStateOf(128) }
+    var liveTopic by remember { mutableStateOf("Chilling with Crexa fam ✨") }
+
+    // AI States
+    var isAiGeneratingCaption by remember { mutableStateOf(false) }
+    var isAiCritiquing by remember { mutableStateOf(false) }
+    var critiqueScore by remember { mutableStateOf<Int?>(null) }
+    var critiqueFeedback by remember { mutableStateOf<String?>(null) }
+    var selectedAiTone by remember { mutableStateOf("Aesthetic") }
+
+    // Storage permissions
+    val storagePermissions = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            listOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+    }
+    val storagePermissionsState = rememberMultiplePermissionsState(permissions = storagePermissions)
+
+    // Camera permissions
+    val cameraPermissions = remember {
+        listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+    }
+    val cameraPermissionsState = rememberMultiplePermissionsState(permissions = cameraPermissions)
+
+    // System Photo/Video Picker launcher
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedMediaUrl = uri.toString()
+            isDeviceMediaSelected = true
+            Toast.makeText(context, "Loaded from Gallery!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Generic GetContent fallback launcher
+    val getContentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedMediaUrl = uri.toString()
+            isDeviceMediaSelected = true
+            Toast.makeText(context, "Loaded from Gallery!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val launchGalleryPicker = {
+        if (storagePermissionsState.allPermissionsGranted || Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            try {
+                photoPickerLauncher.launch(
+                    PickVisualMediaRequest(
+                        if (selectedTab == 1) ActivityResultContracts.PickVisualMedia.VideoOnly
+                        else ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                    )
+                )
+            } catch (e: Exception) {
+                getContentLauncher.launch(if (selectedTab == 1) "video/*" else "image/*")
+            }
+        } else {
+            storagePermissionsState.launchMultiplePermissionRequest()
+        }
+    }
+
     val sampleGalleryImages = listOf(
         "android.resource://com.aistudio.lumina.social/drawable/img_sample_post_1_1786177193097",
         "android.resource://com.aistudio.lumina.social/drawable/img_sample_post_2_1786177203745",
         "android.resource://com.aistudio.lumina.social/drawable/img_sample_post_3_1786177217178",
-        "android.resource://com.aistudio.lumina.social/drawable/img_lumina_logo_1786177176474"
+        "android.resource://com.aistudio.lumina.social/drawable/img_crexa_brand_logo_1786179516858"
     )
 
-    val filters = listOf("Normal", "Vivid", "Warm", "Mono", "Cyber")
+    val filters = listOf("Normal", "Vivid", "Warm", "Mono", "Cyber", "Golden")
 
     Scaffold(
+        containerColor = Color.White,
         topBar = {
             SimpleTopBar(
                 title = when (selectedTab) {
                     0 -> "New Post"
                     1 -> "New Reel"
-                    else -> "New Story"
+                    2 -> "New Story"
+                    else -> "Go Live"
                 },
                 onBackClick = onBackClick,
                 actions = {
-                    Button(
-                        onClick = {
-                            when (selectedTab) {
-                                0 -> onCreatePost(selectedMediaUrl, caption, location, hashtags, selectedFilter)
-                                1 -> onCreateReel(selectedMediaUrl, caption, audioTitle)
-                                2 -> onCreateStory(selectedMediaUrl, caption)
-                            }
-                            Toast.makeText(context, "Published successfully!", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .testTag("btn_publish_create")
-                    ) {
-                        Text("Share", fontWeight = FontWeight.Bold)
+                    if (selectedTab != 3) {
+                        Button(
+                            onClick = {
+                                when (selectedTab) {
+                                    0 -> onCreatePost(selectedMediaUrl, caption, location, hashtags, selectedFilter)
+                                    1 -> onCreateReel(selectedMediaUrl, caption, if (audioTitle.isBlank()) "Original Sound" else audioTitle)
+                                    2 -> onCreateStory(selectedMediaUrl, caption)
+                                }
+                                Toast.makeText(context, "Published successfully to Crexa!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CrexaPurple),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .testTag("btn_publish_create")
+                        ) {
+                            Text("Share", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             )
@@ -93,215 +188,710 @@ fun CreatePostScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.White)
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Target Format Switcher
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Post") })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Reel") })
-                Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Story") })
-            }
-
-            // Camera vs Gallery Source toggle
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+            // Target Format Switcher (Post, Reel, Story, Live)
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.White,
+                contentColor = CrexaPurple
             ) {
-                FilterChip(
-                    selected = selectedSource == 0,
-                    onClick = { selectedSource = 0 },
-                    label = { Text("Camera") },
-                    leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Post", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
                 )
-                FilterChip(
-                    selected = selectedSource == 1,
-                    onClick = { selectedSource = 1 },
-                    label = { Text("Gallery") },
-                    leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Reel", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
                 )
-            }
-
-            // Preview Box
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(if (selectedTab == 1) 320.dp else 260.dp)
-                    .background(Color.Black)
-            ) {
-                if (selectedSource == 0) {
-                    // Simulated Live Camera Viewfinder
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        val previewImageId = remember(selectedMediaUrl) {
-                            when {
-                                selectedMediaUrl.contains("img_sample_post_1") -> R.drawable.img_sample_post_1_1786177193097
-                                selectedMediaUrl.contains("img_sample_post_2") -> R.drawable.img_sample_post_2_1786177203745
-                                selectedMediaUrl.contains("img_sample_post_3") -> R.drawable.img_sample_post_3_1786177217178
-                                else -> R.drawable.img_crexa_brand_logo_1786179516858
-                            }
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("Story", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
+                )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Red))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Live", fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal)
                         }
+                    }
+                )
+            }
 
-                        Image(
-                            painter = painterResource(id = previewImageId),
-                            contentDescription = "Camera Viewfinder",
+            if (selectedTab == 3) {
+                // LIVE STREAM BROADCAST VIEW
+                LiveBroadcastSetupCard(
+                    topic = liveTopic,
+                    onTopicChange = { liveTopic = it },
+                    isLiveActive = isLiveActive,
+                    viewerCount = liveViewerCount,
+                    onToggleLive = {
+                        if (!isLiveActive) {
+                            if (cameraPermissionsState.allPermissionsGranted) {
+                                isLiveActive = true
+                                Toast.makeText(context, "You are now LIVE on Crexa! 🔴", Toast.LENGTH_LONG).show()
+                            } else {
+                                cameraPermissionsState.launchMultiplePermissionRequest()
+                            }
+                        } else {
+                            isLiveActive = false
+                            Toast.makeText(context, "Live stream ended. Saved replay!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onOpenFullCameraLive = onOpenFullCamera
+                )
+            } else {
+                // Camera vs Gallery Source Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
+                ) {
+                    FilterChip(
+                        selected = selectedSource == 1,
+                        onClick = {
+                            selectedSource = 1
+                            launchGalleryPicker()
+                        },
+                        label = { Text("Upload from Gallery 📁", fontWeight = FontWeight.SemiBold) },
+                        leadingIcon = { Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFFF5F3FF),
+                            selectedLabelColor = CrexaPurple
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedSource == 1,
+                            borderColor = Color(0xFFE2E8F0),
+                            selectedBorderColor = CrexaPurple
+                        )
+                    )
+
+                    FilterChip(
+                        selected = selectedSource == 0,
+                        onClick = {
+                            selectedSource = 0
+                            if (cameraPermissionsState.allPermissionsGranted) {
+                                onOpenFullCamera()
+                            } else {
+                                cameraPermissionsState.launchMultiplePermissionRequest()
+                            }
+                        },
+                        label = { Text("Direct Camera 📷", fontWeight = FontWeight.SemiBold) },
+                        leadingIcon = { Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFFF5F3FF),
+                            selectedLabelColor = CrexaPurple
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedSource == 0,
+                            borderColor = Color(0xFFE2E8F0),
+                            selectedBorderColor = CrexaPurple
+                        )
+                    )
+                }
+
+                // Media Preview Frame
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .height(if (selectedTab == 1) 320.dp else 260.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF0F172A))
+                    ) {
+                        SmartMediaImage(
+                            mediaUrl = selectedMediaUrl,
+                            contentDescription = "Selected Media Preview",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Camera controls overlay
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp)
-                        ) {
-                            Button(
-                                onClick = onOpenFullCamera,
-                                shape = RoundedCornerShape(20.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                modifier = Modifier.testTag("btn_open_camerax")
-                            ) {
-                                Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Open CameraX", fontWeight = FontWeight.Bold)
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    Toast.makeText(context, "Captured photo!", Toast.LENGTH_SHORT).show()
-                                },
+                        if (selectedTab == 1) {
+                            // Reel play badge overlay
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(52.dp)
+                                    .size(54.dp)
                                     .clip(CircleShape)
-                                    .background(Color.White)
-                                    .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                    .testTag("btn_quick_snap")
+                                    .background(Color.Black.copy(alpha = 0.6f))
                             ) {
-                                Icon(Icons.Default.Camera, contentDescription = "Snap", tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+                            }
+                        }
+
+                        // Top-right Change/Picker Button Overlay
+                        Button(
+                            onClick = launchGalleryPicker,
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black.copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(12.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Change Media", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Direct Gallery Chooser Bar
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Gallery Photos & Videos",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A)
+                            )
+                        )
+                        TextButton(onClick = launchGalleryPicker) {
+                            Text("Open Device Gallery ↗", color = CrexaPurple, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+                    }
+
+                    LazyRow(
+                        contentPadding = PaddingValues(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Open Device Picker Action Card
+                        item {
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                                border = BorderStroke(1.5.dp, CrexaPurple),
+                                modifier = Modifier
+                                    .size(76.dp)
+                                    .clickable { launchGalleryPicker() }
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AddPhotoAlternate,
+                                        contentDescription = "Pick file",
+                                        tint = CrexaPurple,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Pick File", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CrexaPurple)
+                                }
+                            }
+                        }
+
+                        // Presets
+                        items(sampleGalleryImages) { media ->
+                            val isSelected = selectedMediaUrl == media
+                            Box(
+                                modifier = Modifier
+                                    .size(76.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(
+                                        width = if (isSelected) 3.dp else 1.dp,
+                                        color = if (isSelected) CrexaPurple else Color(0xFFE2E8F0),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable {
+                                        selectedMediaUrl = media
+                                        isDeviceMediaSelected = false
+                                    }
+                            ) {
+                                SmartMediaImage(
+                                    mediaUrl = media,
+                                    contentDescription = "Sample thumbnail",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(4.dp)
+                                            .size(18.dp)
+                                            .clip(CircleShape)
+                                            .background(CrexaPurple),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                    }
+                                }
                             }
                         }
                     }
-                } else {
-                    val previewImageId = remember(selectedMediaUrl) {
-                        when {
-                            selectedMediaUrl.contains("img_sample_post_1") -> R.drawable.img_sample_post_1_1786177193097
-                            selectedMediaUrl.contains("img_sample_post_2") -> R.drawable.img_sample_post_2_1786177203745
-                            selectedMediaUrl.contains("img_sample_post_3") -> R.drawable.img_sample_post_3_1786177217178
-                            else -> R.drawable.img_lumina_logo_1786177176474
-                        }
-                    }
-
-                    Image(
-                        painter = painterResource(id = previewImageId),
-                        contentDescription = "Selected Media",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
                 }
-            }
 
-            // Gallery selector grid if Gallery tab active
-            if (selectedSource == 1) {
+                // Direct Camera Quick Launch Card
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5F9)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clickable {
+                            if (cameraPermissionsState.allPermissionsGranted) {
+                                onOpenFullCamera()
+                            } else {
+                                cameraPermissionsState.launchMultiplePermissionRequest()
+                            }
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = CrexaPurple,
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Capture Directly with Camera", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                                Text("Record Video Reel, Snap Post, or Story", fontSize = 12.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                        Icon(Icons.Default.ArrowForwardIos, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                    }
+                }
+
+                // Filter Selector
                 Text(
-                    text = "Select from Gallery",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    text = "Color Filters",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A)),
+                    modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 6.dp)
                 )
 
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(sampleGalleryImages) { media ->
-                        val resId = when {
-                            media.contains("img_sample_post_1") -> R.drawable.img_sample_post_1_1786177193097
-                            media.contains("img_sample_post_2") -> R.drawable.img_sample_post_2_1786177203745
-                            media.contains("img_sample_post_3") -> R.drawable.img_sample_post_3_1786177217178
-                            else -> R.drawable.img_lumina_logo_1786177176474
-                        }
+                    items(filters) { filter ->
+                        FilterChip(
+                            selected = selectedFilter == filter,
+                            onClick = { selectedFilter = filter },
+                            label = { Text(filter) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFF5F3FF),
+                                selectedLabelColor = CrexaPurple
+                            )
+                        )
+                    }
+                }
 
-                        Image(
-                            painter = painterResource(id = resId),
-                            contentDescription = "Gallery thumb",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(70.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .border(
-                                    width = if (selectedMediaUrl == media) 3.dp else 0.dp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .clickable { selectedMediaUrl = media }
+                // Input fields
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = caption,
+                        onValueChange = { caption = it },
+                        label = { Text("Write a caption...") },
+                        placeholder = { Text("What's on your mind? #trending") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CrexaPurple,
+                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_create_caption")
+                    )
+
+                    if (selectedTab == 0 || selectedTab == 2) {
+                        OutlinedTextField(
+                            value = location,
+                            onValueChange = { location = it },
+                            label = { Text("Add Location (e.g. Mumbai, New York, Tokyo)") },
+                            leadingIcon = { Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = CrexaPurple) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CrexaPurple,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = hashtags,
+                            onValueChange = { hashtags = it },
+                            label = { Text("Hashtags (comma separated: travel, art, viral)") },
+                            leadingIcon = { Icon(Icons.Outlined.Tag, contentDescription = null, tint = CrexaPurple) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CrexaPurple,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    if (selectedTab == 1) {
+                        OutlinedTextField(
+                            value = audioTitle,
+                            onValueChange = { audioTitle = it },
+                            label = { Text("Audio Track / Song Name") },
+                            placeholder = { Text("e.g. Crexa Vibes - Original Mix") },
+                            leadingIcon = { Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = CrexaPurple) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CrexaPurple,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // --- GEMINI AI ASSIST CARD ---
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF5F3FF)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFDDD6FE)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CrexaPurple)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Crexa AI Assist", fontWeight = FontWeight.Bold, color = CrexaPurple)
+                                }
+                                TextButton(onClick = onOpenAiStudio) {
+                                    Text("Full AI Studio →", fontSize = 12.sp, color = CrexaPurple)
+                                }
+                            }
+
+                            Text("Select AI Tone Style:", style = MaterialTheme.typography.labelSmall, color = Color(0xFF64748B))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(listOf("Aesthetic", "Viral Hype", "Witty", "Minimalist", "Poetic")) { tone ->
+                                    FilterChip(
+                                        selected = selectedAiTone == tone,
+                                        onClick = { selectedAiTone = tone },
+                                        label = { Text(tone, fontSize = 11.sp) }
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        if (!isAiGeneratingCaption) {
+                                            isAiGeneratingCaption = true
+                                            scope.launch {
+                                                val result = geminiService.generateCaptionsAndHashtags(
+                                                    topicOrVibe = if (caption.isNotBlank()) caption else "Lifestyle aesthetic vibe",
+                                                    tone = selectedAiTone
+                                                )
+                                                isAiGeneratingCaption = false
+                                                result.getOrNull()?.let { aiRes ->
+                                                    caption = aiRes.captions.firstOrNull() ?: caption
+                                                    hashtags = aiRes.hashtags.joinToString(", ")
+                                                    if (audioTitle.isBlank()) {
+                                                        audioTitle = aiRes.suggestedMusicGenre
+                                                    }
+                                                    Toast.makeText(context, "AI Generated Captions & Tags!", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isAiGeneratingCaption,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CrexaPurple)
+                                ) {
+                                    if (isAiGeneratingCaption) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Generating...")
+                                    } else {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("AI Captions")
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        if (!isAiCritiquing) {
+                                            isAiCritiquing = true
+                                            scope.launch {
+                                                val res = geminiService.critiquePostViralScore(caption, hashtags)
+                                                isAiCritiquing = false
+                                                res.getOrNull()?.let { critique ->
+                                                    critiqueScore = critique.score
+                                                    critiqueFeedback = "${critique.verdict}\n• " + (critique.strengths.firstOrNull() ?: "High engagement")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isAiCritiquing,
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    if (isAiCritiquing) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                    } else {
+                                        Icon(Icons.Default.Analytics, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Viral Score")
+                                    }
+                                }
+                            }
+
+                            critiqueScore?.let { score ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = CrexaPurple,
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text("$score", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text("Viral Score: $score / 100", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                                            Text(critiqueFeedback ?: "", fontSize = 11.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Direct bottom submit button
+                    Button(
+                        onClick = {
+                            when (selectedTab) {
+                                0 -> onCreatePost(selectedMediaUrl, caption, location, hashtags, selectedFilter)
+                                1 -> onCreateReel(selectedMediaUrl, caption, if (audioTitle.isBlank()) "Original Sound" else audioTitle)
+                                2 -> onCreateStory(selectedMediaUrl, caption)
+                            }
+                            Toast.makeText(context, "Published successfully!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = CrexaPurple),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Text(
+                            text = when (selectedTab) {
+                                0 -> "Share Post Now"
+                                1 -> "Upload Video Reel Now"
+                                else -> "Share to Story Now"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
                         )
                     }
                 }
             }
+        }
+    }
+}
 
-            // Filter Selector
-            Text(
-                text = "Color Filter",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-            )
+@Composable
+private fun LiveBroadcastSetupCard(
+    topic: String,
+    onTopicChange: (String) -> Unit,
+    isLiveActive: Boolean,
+    viewerCount: Int,
+    onToggleLive: () -> Unit,
+    onOpenFullCameraLive: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isLiveActive) Color(0xFF0F172A) else Color(0xFFF8FAFC)),
+        border = BorderStroke(1.dp, if (isLiveActive) Color.Red else Color(0xFFE2E8F0)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            if (isLiveActive) {
+                // Active Live Stream View
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        color = Color.Red,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color.White))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("LIVE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
 
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(filters) { filter ->
-                    FilterChip(
-                        selected = selectedFilter == filter,
-                        onClick = { selectedFilter = filter },
-                        label = { Text(filter) }
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Visibility, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("$viewerCount watching", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
-            }
 
-            // Input fields
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(16.dp)
-            ) {
-                OutlinedTextField(
-                    value = caption,
-                    onValueChange = { caption = it },
-                    label = { Text("Write a caption...") },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("input_create_caption")
-                )
-
-                if (selectedTab == 0) {
-                    OutlinedTextField(
-                        value = location,
-                        onValueChange = { location = it },
-                        label = { Text("Add Location (e.g. Shinjuku, Tokyo)") },
-                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth()
+                        .height(240.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SmartMediaImage(
+                        mediaUrl = "android.resource://com.aistudio.lumina.social/drawable/img_sample_post_1_1786177193097",
+                        contentDescription = "Live feed",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
 
-                    OutlinedTextField(
-                        value = hashtags,
-                        onValueChange = { hashtags = it },
-                        label = { Text("Hashtags (comma separated)") },
-                        leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    // Live comments simulation overlay
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(12.dp)
+                    ) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        ) {
+                            Text("🔥 @alex_creator: loving the stream!", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                        }
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("❤️ @zara_art: hello from Tokyo!", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                        }
+                    }
                 }
 
-                if (selectedTab == 1) {
-                    OutlinedTextField(
-                        value = audioTitle,
-                        onValueChange = { audioTitle = it },
-                        label = { Text("Audio Track Name") },
-                        leadingIcon = { Icon(Icons.Default.MusicNote, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Button(
+                    onClick = onToggleLive,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text("End Live Stream", fontWeight = FontWeight.Bold)
+                }
+            } else {
+                // Setup Broadcast View
+                Icon(
+                    imageVector = Icons.Default.Sensors,
+                    contentDescription = null,
+                    tint = Color.Red,
+                    modifier = Modifier.size(48.dp)
+                )
+
+                Text(
+                    text = "Go Live to Your Crexa Followers",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                )
+
+                Text(
+                    text = "Broadcast live video, interact with real-time comments, and share your moments directly.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF64748B),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+
+                OutlinedTextField(
+                    value = topic,
+                    onValueChange = onTopicChange,
+                    label = { Text("Live Broadcast Title") },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onToggleLive,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f).height(48.dp)
+                    ) {
+                        Icon(Icons.Default.Podcasts, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Start Live", fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onOpenFullCameraLive,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f).height(48.dp)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Open Camera")
+                    }
                 }
             }
         }

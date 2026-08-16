@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.local.entities.StoryEntity
 import com.example.data.local.entities.UserEntity
+import com.example.ui.components.SmartMediaImage
 import com.example.ui.components.UserAvatar
 import com.example.ui.theme.DarkOverlayGradient
 
@@ -108,18 +109,9 @@ fun StoryViewerScreen(
             }
             .testTag("story_viewer_screen")
     ) {
-        // Story image asset
-        val drawableId = remember(currentStory.mediaUrl) {
-            when {
-                currentStory.mediaUrl.contains("img_sample_post_1") -> R.drawable.img_sample_post_1_1786177193097
-                currentStory.mediaUrl.contains("img_sample_post_2") -> R.drawable.img_sample_post_2_1786177203745
-                currentStory.mediaUrl.contains("img_sample_post_3") -> R.drawable.img_sample_post_3_1786177217178
-                else -> R.drawable.img_lumina_logo_1786177176474
-            }
-        }
-
-        Image(
-            painter = painterResource(id = drawableId),
+        // Story image
+        SmartMediaImage(
+            mediaUrl = currentStory.mediaUrl,
             contentDescription = currentStory.caption,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

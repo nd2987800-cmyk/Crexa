@@ -67,7 +67,9 @@ fun MessagesScreen(
                         UserAvatar(
                             avatarUrl = user.avatarUrl,
                             username = user.username,
-                            size = 50.dp
+                            userId = user.id,
+                            size = 50.dp,
+                            showRing = true
                         )
                     },
                     trailingContent = {

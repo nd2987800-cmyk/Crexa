@@ -97,15 +97,83 @@ class CrexaRepository(private val database: CrexaDatabase) {
     fun getAllUsersFlow(): Flow<List<UserEntity>> = userDao.getAllUsers()
     fun searchUsers(query: String): Flow<List<UserEntity>> = userDao.searchUsers(query)
 
+    suspend fun registerUser(username: String, email: String, password: String):Result<UserEntity> = withContext(Dispatchers.IO) {
+        val cleanUsername = username.trim()
+        val cleanEmail = email.trim().lowercase()
+        val cleanPassword = password.trim()
+
+        val existingByName = userDao.getUserByUsername(cleanUsername)
+        if (existingByName != null && existingByName.id != "user_me") {
+            return@withContext Result.failure(Exception("Username already exists! Please choose another."))
+        }
+
+        userDao.clearCurrentUserFlag()
+
+        val userId = "user_${System.currentTimeMillis()}"
+        val newUser = UserEntity(
+            id = userId,
+            username = cleanUsername,
+            email = cleanEmail,
+            passwordHash = cleanPassword,
+            fullName = cleanUsername.replaceFirstChar { it.uppercase() },
+            bio = "Welcome to my Crexa profile ✨",
+            avatarUrl = "android.resource://com.aistudio.lumina.social/drawable/img_crexa_brand_logo_1786179516858",
+            followersCount = 0,
+            followingCount = 0,
+            postsCount = 0,
+            isCurrentUser = true
+        )
+        userDao.insertUser(newUser)
+        _isLoggedIn.value = true
+        return@withContext Result.success(newUser)
+    }
+
+    suspend fun loginWithCredentials(usernameOrEmail: String, password: String): Result<UserEntity> = withContext(Dispatchers.IO) {
+        val query = usernameOrEmail.trim()
+        val cleanPassword = password.trim()
+
+        val foundUser = userDao.getUserByUsernameOrEmail(query)
+        if (foundUser != null) {
+            // Check password if set, or allow login
+            if (foundUser.passwordHash.isNotEmpty() && foundUser.passwordHash != cleanPassword) {
+                return@withContext Result.failure(Exception("Incorrect password for @${foundUser.username}."))
+            }
+            userDao.clearCurrentUserFlag()
+            userDao.updateUser(foundUser.copy(isCurrentUser = true))
+            _isLoggedIn.value = true
+            return@withContext Result.success(foundUser)
+        }
+
+        // If user doesn't exist yet, automatically persist and save with this password
+        val userId = "user_${System.currentTimeMillis()}"
+        val cleanUsername = query.substringBefore("@")
+        userDao.clearCurrentUserFlag()
+        val newUser = UserEntity(
+            id = userId,
+            username = cleanUsername,
+            email = if (query.contains("@")) query else "$cleanUsername@crexa.app",
+            passwordHash = cleanPassword,
+            fullName = cleanUsername.replaceFirstChar { it.uppercase() },
+            bio = "Welcome to my Crexa profile ✨",
+            avatarUrl = "android.resource://com.aistudio.lumina.social/drawable/img_crexa_brand_logo_1786179516858",
+            isCurrentUser = true
+        )
+        userDao.insertUser(newUser)
+        _isLoggedIn.value = true
+        return@withContext Result.success(newUser)
+    }
+
     suspend fun loginUser(username: String) = withContext(Dispatchers.IO) {
-        val user = userDao.getCurrentUser()
-        if (user != null) {
-            userDao.updateUser(user.copy(username = username))
+        val cleanUsername = username.trim()
+        val foundUser = userDao.getUserByUsername(cleanUsername)
+        userDao.clearCurrentUserFlag()
+        if (foundUser != null) {
+            userDao.updateUser(foundUser.copy(isCurrentUser = true))
         } else {
             val newUser = UserEntity(
-                id = "user_me",
-                username = username,
-                fullName = username.replaceFirstChar { it.uppercase() },
+                id = "user_${System.currentTimeMillis()}",
+                username = cleanUsername,
+                fullName = cleanUsername.replaceFirstChar { it.uppercase() },
                 bio = "Welcome to my Crexa profile ✨",
                 avatarUrl = "android.resource://com.aistudio.lumina.social/drawable/img_crexa_brand_logo_1786179516858",
                 isCurrentUser = true
@@ -115,7 +183,15 @@ class CrexaRepository(private val database: CrexaDatabase) {
         _isLoggedIn.value = true
     }
 
+    suspend fun deleteCurrentAccount(): Boolean = withContext(Dispatchers.IO) {
+        val current = userDao.getCurrentUser() ?: return@withContext false
+        userDao.clearCurrentUserFlag()
+        _isLoggedIn.value = false
+        true
+    }
+
     suspend fun logoutUser() = withContext(Dispatchers.IO) {
+        userDao.clearCurrentUserFlag()
         _isLoggedIn.value = false
     }
 
