@@ -1,6 +1,7 @@
 package com.example
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,12 +30,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val database = CrexaDatabase.getDatabase(applicationContext)
-        val repository = CrexaRepository(database)
+        val repository = CrexaRepository(applicationContext, database)
         val factory = MainViewModelFactory(repository)
 
         setContent {
             val viewModel: MainViewModel = viewModel(factory = factory)
             val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+            // Dynamic Security: Allow Screenshot/Screen Recording ONLY on Home Feed & Reels
+            LaunchedEffect(state.currentScreen) {
+                if (state.currentScreen == Screen.Home || state.currentScreen == Screen.Reels) {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                } else {
+                    window.setFlags(
+                        WindowManager.LayoutParams.FLAG_SECURE,
+                        WindowManager.LayoutParams.FLAG_SECURE
+                    )
+                }
+            }
 
             CrexaTheme(forceDarkTheme = state.isDarkMode) {
                 if (state.currentScreen == Screen.Splash) {
@@ -55,14 +69,28 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         },
+                        onPhoneLoginSuccess = { phoneNumber, username ->
+                            viewModel.loginWithPhone(phoneNumber, username) { success, _ ->
+                                if (!success) {
+                                    viewModel.login(username)
+                                }
+                            }
+                        },
                         onNavigateToSignUp = {
                             viewModel.navigateTo(Screen.SignUp)
                         }
                     )
                 } else if (state.currentScreen == Screen.SignUp) {
                     SignUpScreen(
-                        onSignUpSuccess = { username, email, password ->
-                            viewModel.registerWithPassword(username, email, password) { success, _ ->
+                        onSignUpSuccess = { username, email, password, phoneNumber ->
+                            viewModel.registerWithPassword(username, email, password, phoneNumber) { success, _ ->
+                                if (!success) {
+                                    viewModel.signup(username)
+                                }
+                            }
+                        },
+                        onPhoneSignUpSuccess = { phoneNumber, username ->
+                            viewModel.loginWithPhone(phoneNumber, username) { success, _ ->
                                 if (!success) {
                                     viewModel.signup(username)
                                 }
@@ -149,6 +177,11 @@ class MainActivity : ComponentActivity() {
                                     SearchScreen(
                                         posts = state.posts,
                                         users = state.users,
+                                        currentUser = state.currentUser,
+                                        firestoreSearchResults = state.firestoreUserSearchResults,
+                                        isSearchingUsers = state.isSearchingUsers,
+                                        onSearchUsers = { query -> viewModel.searchUsersInFirestore(query) },
+                                        onFollowUser = { userId -> viewModel.toggleFollowUser(userId) },
                                         onUserClick = { userId -> viewModel.openUserProfile(userId) },
                                         onPostClick = { postId -> viewModel.openComments(postId) }
                                     )
@@ -211,7 +244,17 @@ class MainActivity : ComponentActivity() {
                                         onSettingsClick = { viewModel.navigateTo(Screen.Settings) },
                                         onFollowClick = {},
                                         onMessageClick = {},
-                                        onPostClick = { postId -> viewModel.openComments(postId) }
+                                        onPostClick = { postId -> viewModel.openComments(postId) },
+                                        onFollowersClick = {
+                                            state.currentUser?.let { me ->
+                                                viewModel.navigateTo(Screen.UserList("Followers", me.id, "FOLLOWERS"))
+                                            }
+                                        },
+                                        onFollowingClick = {
+                                            state.currentUser?.let { me ->
+                                                viewModel.navigateTo(Screen.UserList("Following", me.id, "FOLLOWING"))
+                                            }
+                                        }
                                     )
                                 }
                                 is Screen.UserProfile -> {
@@ -230,7 +273,17 @@ class MainActivity : ComponentActivity() {
                                         onSettingsClick = { viewModel.navigateTo(Screen.Settings) },
                                         onFollowClick = { targetUser?.let { viewModel.toggleFollowUser(it.id) } },
                                         onMessageClick = { targetUser?.let { viewModel.openDirectChat(it.id) } },
-                                        onPostClick = { postId -> viewModel.openComments(postId) }
+                                        onPostClick = { postId -> viewModel.openComments(postId) },
+                                        onFollowersClick = {
+                                            targetUser?.let { u ->
+                                                viewModel.navigateTo(Screen.UserList("${u.username}'s Followers", u.id, "FOLLOWERS"))
+                                            }
+                                        },
+                                        onFollowingClick = {
+                                            targetUser?.let { u ->
+                                                viewModel.navigateTo(Screen.UserList("${u.username}'s Following", u.id, "FOLLOWING"))
+                                            }
+                                        }
                                     )
                                 }
                                 Screen.EditProfile -> {
@@ -295,8 +348,31 @@ class MainActivity : ComponentActivity() {
                                         stories = state.stories,
                                         users = state.users,
                                         initialIndex = screen.index,
+                                        currentUser = state.currentUser,
                                         onClose = { viewModel.navigateBack() },
-                                        onSendReply = { recipientId, msg -> viewModel.sendMessage(recipientId, msg) }
+                                        onSendReply = { recipientId, msg -> viewModel.sendMessage(recipientId, msg) },
+                                        onFetchStoryViewers = { storyId -> viewModel.getStorySeenUsers(storyId) },
+                                        onUserClick = { userId -> viewModel.openUserProfile(userId) }
+                                    )
+                                }
+                                is Screen.UserList -> {
+                                    UserListScreen(
+                                        title = screen.title,
+                                        userId = screen.userId,
+                                        mode = screen.mode,
+                                        currentUser = state.currentUser,
+                                        onFetchUsers = {
+                                            if (screen.mode == "FOLLOWERS") {
+                                                viewModel.getFollowersUsers(screen.userId)
+                                            } else if (screen.mode == "FOLLOWING") {
+                                                viewModel.getFollowingUsers(screen.userId)
+                                            } else {
+                                                viewModel.getStorySeenUsers(screen.userId)
+                                            }
+                                        },
+                                        onFollowToggle = { targetId -> viewModel.toggleFollowUser(targetId) },
+                                        onUserClick = { targetId -> viewModel.openUserProfile(targetId) },
+                                        onBackClick = { viewModel.navigateBack() }
                                     )
                                 }
                                 else -> {}

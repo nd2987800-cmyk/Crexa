@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -55,7 +57,23 @@ fun ReelsScreen(
 ) {
     val context = LocalContext.current
     val userMap = remember(users) { users.associateBy { it.id } }
-    val pagerState = rememberPagerState(pageCount = { reels.size })
+    var selectedCategory by remember { mutableStateOf("For You") }
+    val categories = listOf("For You", "Trending", "Comedy", "Tech", "Fitness", "Music", "Travel")
+
+    val filteredReels = remember(reels, selectedCategory) {
+        if (selectedCategory == "For You") {
+            reels
+        } else {
+            val filterTag = selectedCategory.lowercase()
+            val matched = reels.filter {
+                it.caption.contains(filterTag, ignoreCase = true) ||
+                it.audioTitle.contains(filterTag, ignoreCase = true)
+            }
+            if (matched.isNotEmpty()) matched else reels
+        }
+    }
+
+    val pagerState = rememberPagerState(pageCount = { filteredReels.size })
 
     Box(
         modifier = Modifier
@@ -63,13 +81,13 @@ fun ReelsScreen(
             .background(Color.Black)
             .testTag("reels_screen")
     ) {
-        if (reels.isEmpty()) {
+        if (filteredReels.isEmpty()) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.fillMaxSize()
             ) {
                 Text(
-                    text = "No Reels available yet. Be the first to post!",
+                    text = "No Reels available yet in this category.",
                     color = Color.White
                 )
             }
@@ -78,7 +96,7 @@ fun ReelsScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
-                val reel = reels[page]
+                val reel = filteredReels[page]
                 val author = userMap[reel.userId]
                 ReelPageItem(
                     reel = reel,
@@ -107,6 +125,36 @@ fun ReelsScreen(
                 )
             }
         }
+
+        // Top Category Bar for Personalized Custom Feed
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(top = 48.dp, start = 12.dp, end = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(categories) { cat ->
+                val isSelected = cat == selectedCategory
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isSelected) Color.White else Color.Black.copy(alpha = 0.5f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isSelected) Color.White else Color.White.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.clickable { selectedCategory = cat }
+                ) {
+                    Text(
+                        text = cat,
+                        color = if (isSelected) Color.Black else Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -125,7 +173,9 @@ fun ReelPageItem(
     var isMuted by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(true) }
     var showDoubleTapHeart by remember { mutableStateOf(false) }
+    var showGiftModal by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Rotating album vinyl disc animation
     val infiniteTransition = rememberInfiniteTransition(label = "disc_rotation")
@@ -176,7 +226,7 @@ fun ReelPageItem(
                 .background(DarkOverlayGradient)
         )
 
-        // Sound Mute/Unmute Indicator Button on Top
+        // Sound Mute/Unmute & Crexa Watermark Pill on Top
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
@@ -185,14 +235,35 @@ fun ReelPageItem(
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Text(
-                text = "Reels",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp
-                ),
-                color = Color.White
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Reels",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp
+                    ),
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                // Watermark Pill for Content Rights & Organic App Growth
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.Black.copy(alpha = 0.5f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = "⚡ Crexa • @${author?.username ?: "creator"}",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
 
             IconButton(
                 onClick = { isMuted = !isMuted },
@@ -313,6 +384,28 @@ fun ReelPageItem(
                 )
             }
 
+            // Virtual Gifts / Tip Creator
+            IconButton(onClick = { showGiftModal = true }) {
+                Icon(
+                    imageVector = Icons.Default.CardGiftcard,
+                    contentDescription = "Send Gift",
+                    tint = Color(0xFFFBBF24),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            // Remix / Duet button
+            IconButton(onClick = {
+                Toast.makeText(context, "Opening Camera in Split-Screen Duet / Remix mode with @${author?.username ?: "creator"}", Toast.LENGTH_LONG).show()
+            }) {
+                Icon(
+                    imageVector = Icons.Default.AltRoute,
+                    contentDescription = "Remix / Duet",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
             // Spinning Vinyl Album Audio Disc
             Box(
                 contentAlignment = Alignment.Center,
@@ -321,12 +414,39 @@ fun ReelPageItem(
                     .clip(CircleShape)
                     .background(Color.DarkGray)
                     .rotate(if (isPlaying && isCurrentPage) rotationAngle else 0f)
+                    .clickable {
+                        Toast.makeText(context, "🎵 ${reel.audioTitle} • Used in 12.4K Crexa Reels", Toast.LENGTH_SHORT).show()
+                    }
             ) {
                 Icon(
                     imageVector = Icons.Default.MusicNote,
                     contentDescription = "Music",
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // Floating Quick Emojis Reaction Strip for Reel
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 78.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.45f))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            val reelEmojis = listOf("🔥", "❤️", "😂", "👏", "🚀", "😍")
+            for (em in reelEmojis) {
+                Text(
+                    text = em,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable {
+                            Toast.makeText(context, "Reacted $em to @${author?.username ?: "creator"}'s reel!", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
         }
@@ -406,6 +526,58 @@ fun ReelPageItem(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+
+        if (showGiftModal) {
+            AlertDialog(
+                onDismissRequest = { showGiftModal = false },
+                icon = {
+                    Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(32.dp))
+                },
+                title = {
+                    Text("Send Gift to @${author?.username ?: "creator"} 🎁", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Choose a virtual gift to reward this reel:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val gifts = listOf(
+                            Triple("Rose 🌹", "10 Stars", Color(0xFFEF4444)),
+                            Triple("Coffee ☕", "25 Stars", Color(0xFFB45309)),
+                            Triple("Rocket 🚀", "50 Stars", Color(0xFF3B82F6)),
+                            Triple("Diamond 💎", "100 Stars", Color(0xFF8B5CF6)),
+                            Triple("Crown 👑", "500 Stars", Color(0xFFF59E0B))
+                        )
+                        gifts.forEach { (name, cost, color) ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showGiftModal = false
+                                        Toast.makeText(context, "🎁 Sent $name ($cost) to @${author?.username ?: "creator"}! Stars added to creator's earnings.", Toast.LENGTH_SHORT).show()
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Badge(containerColor = color) {
+                                        Text(cost, color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showGiftModal = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

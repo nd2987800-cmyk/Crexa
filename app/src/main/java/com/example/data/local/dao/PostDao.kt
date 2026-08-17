@@ -18,6 +18,9 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE id = :postId")
     fun getPostById(postId: String): Flow<PostEntity?>
 
+    @Query("SELECT * FROM posts WHERE id = :postId LIMIT 1")
+    suspend fun getPostByIdSync(postId: String): PostEntity?
+
     @Query("SELECT * FROM posts WHERE caption LIKE '%' || :query || '%' OR hashtags LIKE '%' || :query || '%' OR location LIKE '%' || :query || '%' ORDER BY timestamp DESC")
     fun searchPosts(query: String): Flow<List<PostEntity>>
 

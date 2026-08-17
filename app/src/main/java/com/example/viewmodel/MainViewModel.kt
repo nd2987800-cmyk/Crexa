@@ -24,7 +24,9 @@ data class CrexaUiState(
     val notifications: List<NotificationEntity> = emptyList(),
     val userPosts: List<PostEntity> = emptyList(),
     val userReels: List<ReelEntity> = emptyList(),
-    val savedPosts: List<PostEntity> = emptyList()
+    val savedPosts: List<PostEntity> = emptyList(),
+    val firestoreUserSearchResults: List<UserEntity> = emptyList(),
+    val isSearchingUsers: Boolean = false
 )
 
 typealias LuminaUiState = CrexaUiState
@@ -33,6 +35,29 @@ class MainViewModel(private val repository: CrexaRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CrexaUiState())
     val uiState: StateFlow<CrexaUiState> = _uiState.asStateFlow()
+
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    fun searchUsersInFirestore(query: String) {
+        searchJob?.cancel()
+        val cleanQuery = query.trim().lowercase().removePrefix("@")
+        if (cleanQuery.isEmpty()) {
+            _uiState.update { it.copy(firestoreUserSearchResults = emptyList(), isSearchingUsers = false) }
+            return
+        }
+
+        searchJob = viewModelScope.launch {
+            _uiState.update { it.copy(isSearchingUsers = true) }
+            // small debounce
+            kotlinx.coroutines.delay(200)
+            try {
+                val results = repository.searchUsersFromFirestore(cleanQuery)
+                _uiState.update { it.copy(firestoreUserSearchResults = results, isSearchingUsers = false) }
+            } catch (e: Throwable) {
+                _uiState.update { it.copy(isSearchingUsers = false) }
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -168,14 +193,26 @@ class MainViewModel(private val repository: CrexaRepository) : ViewModel() {
         }
     }
 
-    fun registerWithPassword(username: String, email: String, password: String, onResult: (Boolean, String?) -> Unit) {
+    fun registerWithPassword(username: String, email: String, password: String, phoneNumber: String = "", onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            val result = repository.registerUser(username, email, password)
+            val result = repository.registerUser(username, email, password, phoneNumber)
             if (result.isSuccess) {
                 onResult(true, null)
                 navigateTo(Screen.Home)
             } else {
                 onResult(false, result.exceptionOrNull()?.localizedMessage ?: "Registration failed")
+            }
+        }
+    }
+
+    fun loginWithPhone(phoneNumber: String, username: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.loginWithPhoneOtp(phoneNumber, username)
+            if (result.isSuccess) {
+                onResult(true, null)
+                navigateTo(Screen.Home)
+            } else {
+                onResult(false, result.exceptionOrNull()?.localizedMessage ?: "Phone login failed")
             }
         }
     }
@@ -343,6 +380,18 @@ class MainViewModel(private val repository: CrexaRepository) : ViewModel() {
                 repository.toggleMuteUser(userId, true)
             }
         }
+    }
+
+    suspend fun getStorySeenUsers(storyId: String): List<UserEntity> {
+        return repository.getStorySeenUsers(storyId)
+    }
+
+    suspend fun getFollowersUsers(userId: String): List<UserEntity> {
+        return repository.getFollowersUsers(userId)
+    }
+
+    suspend fun getFollowingUsers(userId: String): List<UserEntity> {
+        return repository.getFollowingUsers(userId)
     }
 }
 

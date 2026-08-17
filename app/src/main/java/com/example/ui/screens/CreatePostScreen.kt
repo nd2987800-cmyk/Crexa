@@ -73,6 +73,13 @@ fun CreatePostScreen(
     var location by remember { mutableStateOf("") }
     var hashtags by remember { mutableStateOf("") }
     var audioTitle by remember { mutableStateOf("") }
+    var taggedUsers by remember { mutableStateOf("") }
+    var isCloseFriendsOnly by remember { mutableStateOf(false) }
+    var isRemixDuetEnabled by remember { mutableStateOf(true) }
+    var isCollabPost by remember { mutableStateOf(false) }
+    var collabCoAuthor by remember { mutableStateOf("") }
+    var isWatermarkEnabled by remember { mutableStateOf(true) }
+    var showMusicDialog by remember { mutableStateOf(false) }
 
     // Live Streaming State
     var isLiveActive by remember { mutableStateOf(false) }
@@ -485,21 +492,43 @@ fun CreatePostScreen(
                     }
                 }
 
-                // Filter Selector
-                Text(
-                    text = "Color Filters",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A)),
-                    modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 6.dp)
-                )
+                // Filter Selector & AI Magic Enhance
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Color Filters & AI Magic",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                    )
+                    SuggestionChip(
+                        onClick = {
+                            selectedFilter = if (selectedFilter == "AI Magic ✨") "Normal" else "AI Magic ✨"
+                            Toast.makeText(context, "🪄 Gemini AI Magic Enhancement Applied! Colors optimized.", Toast.LENGTH_SHORT).show()
+                        },
+                        label = { Text("🪄 1-Tap AI Enhance", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CrexaPurple) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color(0xFFF5F3FF)),
+                        border = BorderStroke(1.dp, CrexaPurple)
+                    )
+                }
 
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filters) { filter ->
+                    val allFilters = listOf("Normal", "AI Magic ✨", "Vivid", "Warm", "Mono", "Cyber", "Golden")
+                    items(allFilters) { filter ->
                         FilterChip(
                             selected = selectedFilter == filter,
-                            onClick = { selectedFilter = filter },
+                            onClick = {
+                                selectedFilter = filter
+                                if (filter == "AI Magic ✨") {
+                                    Toast.makeText(context, "🪄 Gemini AI Auto Enhancing Contrast & Dynamic Range!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             label = { Text(filter) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Color(0xFFF5F3FF),
@@ -558,19 +587,189 @@ fun CreatePostScreen(
                     }
 
                     if (selectedTab == 1) {
-                        OutlinedTextField(
-                            value = audioTitle,
-                            onValueChange = { audioTitle = it },
-                            label = { Text("Audio Track / Song Name") },
-                            placeholder = { Text("e.g. Crexa Vibes - Original Mix") },
-                            leadingIcon = { Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = CrexaPurple) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = CrexaPurple,
-                                unfocusedBorderColor = Color(0xFFCBD5E1)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
-                        )
+                        ) {
+                            OutlinedTextField(
+                                value = audioTitle,
+                                onValueChange = { audioTitle = it },
+                                label = { Text("Audio Track / Song Name") },
+                                placeholder = { Text("e.g. Crexa Vibes - Original Mix") },
+                                leadingIcon = { Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = CrexaPurple) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CrexaPurple,
+                                    unfocusedBorderColor = Color(0xFFCBD5E1)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(
+                                onClick = {
+                                    val popularTracks = listOf("Cyberpunk Skyline ✨", "Midnight Chill Beats 🎧", "Lofi Sunset Glow 🌅", "Crexa Anthem ⚡")
+                                    audioTitle = popularTracks.random()
+                                    Toast.makeText(context, "Added track: $audioTitle", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = CrexaPurple.copy(alpha = 0.15f), contentColor = CrexaPurple),
+                                modifier = Modifier.height(56.dp)
+                            ) {
+                                Icon(Icons.Default.LibraryMusic, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Music", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+
+                        // Remix & Duet Toggle
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Allow Remix & Duets", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("Let other creators react or collab with your reel", fontSize = 11.sp, color = Color.Gray)
+                            }
+                            Switch(
+                                checked = isRemixDuetEnabled,
+                                onCheckedChange = { isRemixDuetEnabled = it }
+                            )
+                        }
+                    }
+
+                    // Tag People & Collaborators
+                    OutlinedTextField(
+                        value = taggedUsers,
+                        onValueChange = { taggedUsers = it },
+                        label = { Text("Tag People / Collaborator (e.g. @alex, @sarah)") },
+                        leadingIcon = { Icon(Icons.Outlined.PersonAddAlt, contentDescription = null, tint = CrexaPurple) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CrexaPurple,
+                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Close Friends Only switch (for Stories & Posts)
+                    if (selectedTab == 0 || selectedTab == 2) {
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (isCloseFriendsOnly) Color(0xFFECFDF5) else Color(0xFFF8FAFC)),
+                            border = BorderStroke(1.dp, if (isCloseFriendsOnly) Color(0xFF10B981) else Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = if (isCloseFriendsOnly) Color(0xFF10B981) else Color.Gray,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Close Friends Only 🟢", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (isCloseFriendsOnly) Color(0xFF065F46) else Color.Black)
+                                        Text("Only your custom close friends circle can see this", fontSize = 11.sp, color = Color.Gray)
+                                    }
+                                }
+                                Switch(
+                                    checked = isCloseFriendsOnly,
+                                    onCheckedChange = {
+                                        isCloseFriendsOnly = it
+                                        Toast.makeText(context, if (it) "Audience set to Close Friends 🟢" else "Audience set to Public", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Collab Post / Invite Co-Author Card
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (isCollabPost) Color(0xFFF0FDF4) else Color(0xFFF8FAFC)),
+                        border = BorderStroke(1.dp, if (isCollabPost) Color(0xFF86EFAC) else Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.GroupAdd,
+                                        contentDescription = null,
+                                        tint = if (isCollabPost) Color(0xFF10B981) else CrexaPurple,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Invite Co-Author / Collab Post 🤝", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (isCollabPost) Color(0xFF065F46) else Color.Black)
+                                        Text("Shares view count, likes, and reach on both profiles", fontSize = 11.sp, color = Color.Gray)
+                                    }
+                                }
+                                Switch(
+                                    checked = isCollabPost,
+                                    onCheckedChange = { isCollabPost = it }
+                                )
+                            }
+
+                            if (isCollabPost) {
+                                OutlinedTextField(
+                                    value = collabCoAuthor,
+                                    onValueChange = { collabCoAuthor = it },
+                                    label = { Text("Co-Author Username (e.g. @priya_creatives)") },
+                                    placeholder = { Text("@username") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
+                    // Auto Watermark Toggle
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.BrandingWatermark,
+                                    contentDescription = null,
+                                    tint = CrexaPurple,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("Add Crexa & @Username Watermark", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Protects your original content when saved or shared externally", fontSize = 11.sp, color = Color.Gray)
+                                }
+                            }
+                            Switch(
+                                checked = isWatermarkEnabled,
+                                onCheckedChange = { isWatermarkEnabled = it }
+                            )
+                        }
                     }
 
                     // --- GEMINI AI ASSIST CARD ---

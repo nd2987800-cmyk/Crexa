@@ -1,14 +1,22 @@
 package com.example.ui.screens
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,6 +28,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -48,10 +57,20 @@ fun ProfileScreen(
     onSettingsClick: () -> Unit,
     onFollowClick: () -> Unit,
     onMessageClick: () -> Unit,
-    onPostClick: (String) -> Unit
+    onPostClick: (String) -> Unit,
+    onFollowersClick: () -> Unit = {},
+    onFollowingClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) } // 0 = Posts, 1 = Reels, 2 = Saved
+    var showPayoutDialog by remember { mutableStateOf(false) }
+    var creatorBankHolderName by remember { mutableStateOf("") }
+    var creatorAccountNumber by remember { mutableStateOf("") }
+    var creatorIfscCode by remember { mutableStateOf("") }
+    var creatorBankName by remember { mutableStateOf("") }
+    var creatorUpiId by remember { mutableStateOf("") }
+    var creatorPanOrTaxId by remember { mutableStateOf("") }
+    var isBankSaved by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -111,9 +130,9 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
-                        ProfileStatItem(count = user?.postsCount ?: 0, label = "Posts")
-                        ProfileStatItem(count = user?.followersCount ?: 0, label = "Followers")
-                        ProfileStatItem(count = user?.followingCount ?: 0, label = "Following")
+                        ProfileStatItem(count = user?.postsCount ?: 0, label = "Posts", onClick = null)
+                        ProfileStatItem(count = user?.followersCount ?: 0, label = "Followers", onClick = onFollowersClick)
+                        ProfileStatItem(count = user?.followingCount ?: 0, label = "Following", onClick = onFollowingClick)
                     }
                 }
 
@@ -141,7 +160,106 @@ fun ProfileScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Professional Creator Dashboard & Insights Banner
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            Toast.makeText(context, "Analytics: 14.8K Profile Views • 94% Engagement this week 📈", Toast.LENGTH_LONG).show()
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Insights, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Professional Dashboard", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("14.8K views in the last 30 days", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Text("Insights ↗", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+
+                if (isCurrentUser) {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Creator Payouts & Earnings Card
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF064E3B).copy(alpha = 0.12f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showPayoutDialog = true }
+                            .testTag("card_profile_payouts")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFF10B981),
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.AccountBalance,
+                                            contentDescription = "Payouts",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Payouts & Ad Earnings",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Badge(containerColor = Color(0xFF10B981)) {
+                                            Text("Ready", color = Color.White, fontSize = 9.sp)
+                                        }
+                                    }
+                                    Text(
+                                        text = "$124.50 Accumulated • Withdraw via Bank/UPI",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF059669),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                            FilledTonalButton(
+                                onClick = { showPayoutDialog = true },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Text("Withdraw ↗", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Action Buttons Row
                 if (isCurrentUser) {
@@ -164,7 +282,7 @@ fun ProfileScreen(
                             },
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
-                        ) {
+                         ) {
                             Text("Share Profile", fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -190,6 +308,88 @@ fun ProfileScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Message", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Story Highlights Section
+                Text(
+                    text = "Story Highlights",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val sampleHighlights = listOf(
+                    Pair("✨ Vibes", "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200"),
+                    Pair("✈️ Travel", "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200"),
+                    Pair("🎨 Crexa AI", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200"),
+                    Pair("🍕 Food", "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200")
+                )
+
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isCurrentUser) {
+                        item {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable {
+                                    Toast.makeText(context, "New Highlight created from past stories!", Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(CircleShape)
+                                        .border(
+                                            1.5.dp,
+                                            MaterialTheme.colorScheme.outlineVariant,
+                                            CircleShape
+                                        )
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Add highlight", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("New", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+
+                    items(sampleHighlights) { (name, cover) ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickable {
+                                Toast.makeText(context, "Opening highlight: $name", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                                    .border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.primary,
+                                        CircleShape
+                                    )
+                                    .padding(3.dp)
+                            ) {
+                                SmartMediaImage(
+                                    mediaUrl = cover,
+                                    contentDescription = name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(name, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -269,11 +469,174 @@ fun ProfileScreen(
             }
         }
     }
+
+    if (showPayoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showPayoutDialog = false },
+            icon = {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF10B981),
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.AccountBalance,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+            },
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Creator Rewards & Settlement", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text("Direct Bank / UPI Withdrawal", fontSize = 11.sp, color = Color(0xFF059669), fontWeight = FontWeight.SemiBold)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Earnings Summary Card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Available Balance (12.45M Views)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("$124.50 USD (₹10,395)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                }
+                                Badge(containerColor = Color(0xFF10B981)) {
+                                    Text("Eligible (>$100)", color = Color.White, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Reels: 9.85M views ($98.50)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Posts: 2.60M views ($26.00)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    // Strict Eligibility & Policy Card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86EFAC)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Payout Rules & Guidelines", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF15803D))
+                            }
+                            Text("• Rate: $1.00 USD per 1,00,000 Verified Views", fontSize = 11.sp, color = Color(0xFF166534), fontWeight = FontWeight.Bold)
+                            Text("• Min Threshold: $100.00 USD (Requirement met ✅)", fontSize = 11.sp, color = Color(0xFF166534))
+                            Text("• Direct Settlement via NEFT / RTGS / IMPS / UPI", fontSize = 11.sp, color = Color(0xFF166534))
+                        }
+                    }
+
+                    Text("Beneficiary Bank Account Details (KYC)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                    OutlinedTextField(
+                        value = creatorBankHolderName,
+                        onValueChange = { creatorBankHolderName = it },
+                        label = { Text("Account Holder Name (As per Bank)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = creatorAccountNumber,
+                        onValueChange = { creatorAccountNumber = it },
+                        label = { Text("Bank Account Number") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = creatorIfscCode,
+                        onValueChange = { creatorIfscCode = it.uppercase() },
+                        label = { Text("IFSC / Swift Code (e.g. HDFC0001234)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = creatorBankName,
+                        onValueChange = { creatorBankName = it },
+                        label = { Text("Bank Name (e.g. HDFC / SBI / ICICI)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = creatorUpiId,
+                        onValueChange = { creatorUpiId = it },
+                        label = { Text("UPI ID (Optional, e.g. name@okhdfcbank)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = creatorPanOrTaxId,
+                        onValueChange = { creatorPanOrTaxId = it.uppercase() },
+                        label = { Text("PAN Card / Tax ID (For TDS Compliance)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (creatorAccountNumber.isNotBlank() && creatorIfscCode.isNotBlank() && creatorBankHolderName.isNotBlank()) {
+                            isBankSaved = true
+                            showPayoutDialog = false
+                            Toast.makeText(
+                                context,
+                                "✅ Withdrawal Request of $124.50 submitted! Bank settlement will be processed to $creatorBankName within 24-48 hours.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            Toast.makeText(context, "Please fill in Account Name, Number & IFSC code", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Request Payout ($124.50)")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPayoutDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
-fun ProfileStatItem(count: Int, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun ProfileStatItem(count: Int, label: String, onClick: (() -> Unit)? = null) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = if (onClick != null) Modifier.clickable { onClick() } else Modifier
+    ) {
         Text(
             text = "$count",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -292,10 +655,20 @@ fun EditProfileScreen(
     onSaveProfile: (fullName: String, bio: String, website: String, avatarUrl: String) -> Unit,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     var fullName by remember { mutableStateOf(currentUser?.fullName ?: "") }
     var bio by remember { mutableStateOf(currentUser?.bio ?: "") }
     var website by remember { mutableStateOf(currentUser?.website ?: "") }
     var avatarUrl by remember { mutableStateOf(currentUser?.avatarUrl ?: "") }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            avatarUrl = uri.toString()
+            Toast.makeText(context, "Profile photo selected!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -330,7 +703,13 @@ fun EditProfileScreen(
                 showRing = true
             )
 
-            TextButton(onClick = { /* Pick new picture */ }) {
+            TextButton(
+                onClick = {
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }
+            ) {
                 Text("Change profile picture", fontWeight = FontWeight.Bold)
             }
 
@@ -357,6 +736,34 @@ fun EditProfileScreen(
                 value = website,
                 onValueChange = { website = it },
                 label = { Text("Website Link") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            HorizontalDivider()
+
+            Text(
+                text = "Account Information",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = currentUser?.email?.ifBlank { "Not configured" } ?: "Not configured",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Email Address") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = currentUser?.phoneNumber?.ifBlank { "No phone number linked" } ?: "No phone number linked",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Phone Number") },
+                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth()
             )
         }

@@ -5,18 +5,19 @@ import com.example.data.local.entities.*
 object SampleData {
     val sampleUsers = listOf(
         UserEntity(
-            id = "user_me",
-            username = "alex_crexa",
-            fullName = "Alex Vance",
-            bio = "Visual Storyteller & Motion Designer ✨ | Capturing moments in full spectrum 📷",
+            id = "user_crexa_admin",
+            username = "crexa",
+            fullName = "CREXA Official 👑",
+            bio = "Official Founder & Admin Account of CREXA ⚡ | Redefining Short Video & Creator Economy 🚀",
             avatarUrl = "android.resource://com.aistudio.lumina.social/drawable/img_crexa_brand_logo_1786179516858",
-            followersCount = 1240,
-            followingCount = 482,
-            postsCount = 18,
+            email = "nd2987800@gmail.com",
+            followersCount = 125000,
+            followingCount = 12,
+            postsCount = 45,
             isVerified = true,
             isFollowing = false,
             isCurrentUser = true,
-            website = "https://crexa.app/alex"
+            website = "https://crexa.app"
         ),
         UserEntity(
             id = "user_maya",

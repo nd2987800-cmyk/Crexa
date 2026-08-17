@@ -18,8 +18,11 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1")
     suspend fun getUserByUsername(username: String): UserEntity?
 
-    @Query("SELECT * FROM users WHERE LOWER(username) = LOWER(:query) OR LOWER(email) = LOWER(:query) LIMIT 1")
+    @Query("SELECT * FROM users WHERE LOWER(username) = LOWER(:query) OR LOWER(email) = LOWER(:query) OR phoneNumber = :query LIMIT 1")
     suspend fun getUserByUsernameOrEmail(query: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE phoneNumber = :phone LIMIT 1")
+    suspend fun getUserByPhone(phone: String): UserEntity?
 
     @Query("UPDATE users SET isCurrentUser = 0")
     suspend fun clearCurrentUserFlag()
@@ -41,6 +44,9 @@ interface UserDao {
 
     @Update
     suspend fun updateUser(user: UserEntity)
+
+    @Delete
+    suspend fun deleteUser(user: UserEntity)
 
     @Query("UPDATE users SET isFollowing = :isFollowing, followersCount = followersCount + (CASE WHEN :isFollowing THEN 1 ELSE -1 END) WHERE id = :userId")
     suspend fun updateFollowStatus(userId: String, isFollowing: Boolean)

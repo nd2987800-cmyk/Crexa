@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
@@ -46,6 +47,7 @@ fun PostItemCard(
     onShareClick: () -> Unit,
     onReportBlockUser: (String, String) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showDoubleTapHeart by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -256,8 +258,34 @@ fun PostItemCard(
                 }
             }
 
-            // Likes count & Caption
+            // Likes count, Floating Reactions & Caption
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)) {
+                // Floating Quick Reactions Tray
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    val emojis = listOf("🔥", "❤️", "😂", "👏", "🚀", "💯")
+                    for (emoji in emojis) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier
+                                .clickable {
+                                    Toast.makeText(context, "Reacted $emoji to @${author?.username ?: "user"}'s post!", Toast.LENGTH_SHORT).show()
+                                }
+                        ) {
+                            Text(
+                                text = emoji,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
                 Text(
                     text = "${post.likesCount} likes",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),

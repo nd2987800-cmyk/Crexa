@@ -19,4 +19,5 @@ sealed class Screen(val route: String) {
     data class Comments(val postId: String) : Screen("comments/$postId")
     data class UserProfile(val userId: String) : Screen("user_profile/$userId")
     data class StoryViewer(val index: Int) : Screen("story_viewer/$index")
+    data class UserList(val title: String, val userId: String, val mode: String) : Screen("user_list/$mode/$userId")
 }
