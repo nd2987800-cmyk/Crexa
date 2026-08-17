@@ -83,7 +83,17 @@ case "`uname`" in
     ;;
 esac
 
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+if [ ! -f "$WRAPPER_JAR" ]; then
+    mkdir -p "$APP_HOME/gradle/wrapper"
+    echo "Downloading Gradle wrapper jar..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -sSL "https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar" -o "$WRAPPER_JAR" || true
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q "https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar" -O "$WRAPPER_JAR" || true
+    fi
+fi
+CLASSPATH=$WRAPPER_JAR
 
 
 # Determine the Java command to use to start the JVM.
