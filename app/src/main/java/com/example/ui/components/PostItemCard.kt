@@ -134,6 +134,22 @@ fun PostItemCard(
                         onDismissRequest = { showOptionsMenu = false }
                     ) {
                         DropdownMenuItem(
+                            text = { Text("Not Interested") },
+                            onClick = {
+                                showOptionsMenu = false
+                                Toast.makeText(context, "Marked as not interested", Toast.LENGTH_SHORT).show()
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.VisibilityOff, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Hide Post") },
+                            onClick = {
+                                showOptionsMenu = false
+                                Toast.makeText(context, "Post hidden from feed", Toast.LENGTH_SHORT).show()
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.HideImage, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Report Post") },
                             onClick = {
                                 showOptionsMenu = false

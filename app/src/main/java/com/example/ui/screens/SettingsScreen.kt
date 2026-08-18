@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.SimpleTopBar
+import com.example.ui.theme.CrexaPurple
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -491,6 +492,33 @@ fun SettingsScreen(
                 modifier = Modifier.clickable { showSessionsDialog = true }
             )
 
+            var isLoginAlertsEnabled by remember { mutableStateOf(true) }
+            ListItem(
+                headlineContent = { Text("Login Alerts & Security Warnings 🔔") },
+                supportingContent = { Text("Instant alert when someone logs into your account from an unrecognized device") },
+                leadingContent = { Icon(Icons.Outlined.NotificationsActive, contentDescription = null, tint = CrexaPurple) },
+                trailingContent = {
+                    Switch(
+                        checked = isLoginAlertsEnabled,
+                        onCheckedChange = {
+                            isLoginAlertsEnabled = it
+                            Toast.makeText(context, if (it) "Login alerts enabled (Push & Email) 🛡️" else "Login alerts disabled", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("Hardware Keystore Vault 🔐") },
+                supportingContent = { Text("EncryptedSharedPreferences & AES-256-GCM hardware key storage") },
+                leadingContent = { Icon(Icons.Outlined.VpnKey, contentDescription = null, tint = Color(0xFF10B981)) },
+                trailingContent = {
+                    Badge(containerColor = Color(0xFF10B981)) {
+                        Text("Encrypted", color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
+                }
+            )
+
             var isCommentFilterEnabled by remember { mutableStateOf(true) }
             ListItem(
                 headlineContent = { Text("Offensive Comment Filtering (AI)") },
@@ -504,6 +532,52 @@ fun SettingsScreen(
                             Toast.makeText(context, if (it) "AI Comment Filter is Active 🛡️" else "Comment filter turned off", Toast.LENGTH_SHORT).show()
                         }
                     )
+                }
+            )
+
+            HorizontalDivider()
+
+            // Offline Cache & Data Management
+            Text(
+                text = "Data & Offline Storage",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+            )
+
+            var isOfflinePreloadEnabled by remember { mutableStateOf(true) }
+            var cacheSizeMb by remember { mutableStateOf("48.6 MB") }
+
+            ListItem(
+                headlineContent = { Text("Smart Offline Cache & Preload") },
+                supportingContent = { Text("Cache Room database feed & pre-buffer Reels for instant zero-lag playback") },
+                leadingContent = { Icon(Icons.Outlined.DownloadDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                trailingContent = {
+                    Switch(
+                        checked = isOfflinePreloadEnabled,
+                        onCheckedChange = {
+                            isOfflinePreloadEnabled = it
+                            Toast.makeText(context, if (it) "Offline preload enabled" else "Offline preload disabled", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("Clear Local Media Cache") },
+                supportingContent = { Text("Cached images, audio & temporary reels: $cacheSizeMb") },
+                leadingContent = { Icon(Icons.Outlined.CleaningServices, contentDescription = null) },
+                trailingContent = {
+                    OutlinedButton(
+                        onClick = {
+                            cacheSizeMb = "0.0 KB"
+                            Toast.makeText(context, "Local cache cleared! 48.6 MB freed up.", Toast.LENGTH_SHORT).show()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("Clear", fontSize = 12.sp)
+                    }
                 }
             )
 

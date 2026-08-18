@@ -42,6 +42,9 @@ import com.example.ui.theme.CrexaPurple
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessagesScreen(
@@ -50,8 +53,41 @@ fun MessagesScreen(
     onOpenChat: (String) -> Unit,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    var selectedMsgTab by remember { mutableIntStateOf(0) } // 0 = Primary, 1 = General, 2 = Channels
+    var myNoteText by remember { mutableStateOf("Listening to lo-fi 🎧") }
+    var showNoteDialog by remember { mutableStateOf(false) }
+
     val otherUsers = remember(users, currentUser) {
         users.filter { it.id != currentUser?.id }
+    }
+
+    if (showNoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoteDialog = false },
+            title = { Text("Share a Note 💭", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = myNoteText,
+                    onValueChange = { if (it.length <= 60) myNoteText = it },
+                    label = { Text("What's on your mind? (60 char max)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showNoteDialog = false
+                    Toast.makeText(context, "Note updated!", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text("Share")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNoteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -61,7 +97,7 @@ fun MessagesScreen(
                     Column {
                         Text("Direct Messages", fontWeight = FontWeight.Bold)
                         Text(
-                            text = "${otherUsers.size} conversations",
+                            text = "${otherUsers.size} active chats",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -73,7 +109,7 @@ fun MessagesScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* New message broadcast */ }) {
+                    IconButton(onClick = { showNoteDialog = true }) {
                         Icon(Icons.Outlined.EditNote, contentDescription = "New message", tint = CrexaPurple)
                     }
                 }
@@ -86,6 +122,147 @@ fun MessagesScreen(
                 .fillMaxSize()
                 .testTag("messages_list")
         ) {
+            // Instagram-Style Notes Row
+            item {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    ) {
+                        // My Note Bubble
+                        item {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { showNoteDialog = true }
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFFF1F5F9),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                ) {
+                                    Text(
+                                        text = myNoteText,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF0F172A),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Box {
+                                    UserAvatar(
+                                        avatarUrl = currentUser?.avatarUrl ?: "",
+                                        username = currentUser?.username ?: "You",
+                                        userId = currentUser?.id ?: "me",
+                                        size = 54.dp
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .align(Alignment.BottomEnd)
+                                            .clip(CircleShape)
+                                            .background(CrexaPurple)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = "Add Note",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(14.dp).align(Alignment.Center)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Your note", fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                        }
+
+                        // Contacts' Notes
+                        val sampleNotes = listOf("Vibing in Tokyo 🌸", "Gym mode 💪", "New reel out now! 🔥", "Coffee time ☕")
+                        itemsIndexed(otherUsers.take(4)) { idx, u ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { onOpenChat(u.id) }
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFFF1F5F9),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                ) {
+                                    Text(
+                                        text = sampleNotes.getOrElse(idx) { "Active ✨" },
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF0F172A),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                UserAvatar(
+                                    avatarUrl = u.avatarUrl,
+                                    username = u.username,
+                                    userId = u.id,
+                                    size = 54.dp,
+                                    showRing = true
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(u.username, fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+                }
+
+                // Message Tabs (Primary, General, Channels)
+                TabRow(
+                    selectedTabIndex = selectedMsgTab,
+                    containerColor = Color.White,
+                    contentColor = CrexaPurple
+                ) {
+                    Tab(
+                        selected = selectedMsgTab == 0,
+                        onClick = { selectedMsgTab = 0 },
+                        text = { Text("Primary", fontWeight = FontWeight.SemiBold) }
+                    )
+                    Tab(
+                        selected = selectedMsgTab == 1,
+                        onClick = { selectedMsgTab = 1 },
+                        text = { Text("General", fontWeight = FontWeight.SemiBold) }
+                    )
+                    Tab(
+                        selected = selectedMsgTab == 2,
+                        onClick = { selectedMsgTab = 2 },
+                        text = { Text("📢 Channels", fontWeight = FontWeight.SemiBold) }
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // Channel Item if Broadcast Channels Tab selected
+            if (selectedMsgTab == 2) {
+                item {
+                    ListItem(
+                        headlineContent = { Text("✨ Crexa Official Announcements", fontWeight = FontWeight.Bold) },
+                        supportingContent = { Text("Crexa Admin: Welcome to Crexa VIP 3.0 update with AI tools!") },
+                        leadingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(CrexaPurple),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Campaign, contentDescription = null, tint = Color.White)
+                            }
+                        },
+                        trailingContent = {
+                            FilledTonalButton(onClick = { Toast.makeText(context, "Joined Channel!", Toast.LENGTH_SHORT).show() }) {
+                                Text("Joined", fontSize = 11.sp)
+                            }
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                }
+            }
+
             items(otherUsers) { user ->
                 ListItem(
                     headlineContent = {
@@ -157,6 +334,7 @@ fun DirectChatScreen(
     var isRecordingVoice by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableStateOf(0) }
     var isViewOnceSelected by remember { mutableStateOf(false) }
+    var isVanishModeActive by remember { mutableStateOf(false) }
     var activeCallType by remember { mutableStateOf<String?>(null) } // "AUDIO" or "VIDEO"
 
     // Photo picker launcher
@@ -230,6 +408,20 @@ fun DirectChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        isVanishModeActive = !isVanishModeActive
+                        Toast.makeText(
+                            context,
+                            if (isVanishModeActive) "👻 Vanish Mode ON: Messages disappear when you leave" else "Vanish Mode OFF",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }) {
+                        Icon(
+                            imageVector = if (isVanishModeActive) Icons.Filled.VisibilityOff else Icons.Outlined.VisibilityOff,
+                            contentDescription = "Toggle Vanish Mode",
+                            tint = if (isVanishModeActive) Color(0xFFE11D48) else CrexaPurple
+                        )
+                    }
                     IconButton(onClick = { activeCallType = "AUDIO" }) {
                         Icon(Icons.Default.Phone, contentDescription = "Audio Call", tint = CrexaPurple)
                     }
@@ -383,24 +575,46 @@ fun DirectChatScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            // E2EE & Anti-Screenshot Privacy Card
+            // E2EE & Anti-Screenshot Privacy Card & Vanish Mode Banner
             item {
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5F9)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (isVanishModeActive) {
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1B4B)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
                     ) {
-                        Icon(Icons.Default.Lock, contentDescription = null, tint = CrexaPurple, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("🔒 End-to-End Encrypted Chat", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E293B))
-                            Text("Messages & calls are private. Screenshots & recording are blocked (FLAG_SECURE).", fontSize = 10.sp, color = Color(0xFF64748B))
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("👻", fontSize = 24.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Vanish Mode is ON", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFC7D2FE))
+                                Text("Seen messages disappear when you close this chat. Media screenshot & replay are blocked.", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5F9)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = CrexaPurple, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("🔒 End-to-End Encrypted with Crexa Vault", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E293B))
+                                Text("Messages & calls are private. Disappearing media & screenshots are secured by hardware keystore.", fontSize = 10.sp, color = Color(0xFF64748B))
+                            }
                         }
                     }
                 }

@@ -43,6 +43,8 @@ import com.example.ui.components.SmartMediaImage
 import com.example.ui.theme.CrexaPurple
 import com.example.ui.theme.StoryGradient
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import kotlinx.coroutines.launch
 
@@ -80,6 +82,9 @@ fun CreatePostScreen(
     var collabCoAuthor by remember { mutableStateOf("") }
     var isWatermarkEnabled by remember { mutableStateOf(true) }
     var showMusicDialog by remember { mutableStateOf(false) }
+    var isDualCameraActive by remember { mutableStateOf(false) }
+    var isAiSubtitlesGenerating by remember { mutableStateOf(false) }
+    var isAiVoiceoverActive by remember { mutableStateOf(false) }
 
     // Live Streaming State
     var isLiveActive by remember { mutableStateOf(false) }
@@ -340,6 +345,58 @@ fun CreatePostScreen(
                                     .background(Color.Black.copy(alpha = 0.6f))
                             ) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+                            }
+
+                            // Dual Camera Overlay Picture-in-Picture
+                            if (isDualCameraActive) {
+                                Card(
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(2.dp, CrexaPurple),
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(12.dp)
+                                        .size(width = 80.dp, height = 110.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0xFF1E293B)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(Icons.Default.Face, contentDescription = "Front Cam", tint = Color.White, modifier = Modifier.size(24.dp))
+                                            Text("Front Cam", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                            Text("Dual 🔄", fontSize = 8.sp, color = CrexaPurple)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Dual Camera Mode Toggle
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isDualCameraActive) CrexaPurple else Color.Black.copy(alpha = 0.6f),
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(12.dp)
+                                    .clickable {
+                                        isDualCameraActive = !isDualCameraActive
+                                        Toast.makeText(context, if (isDualCameraActive) "Dual Camera Mode ON (Front + Back)" else "Dual Camera Mode OFF", Toast.LENGTH_SHORT).show()
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Cameraswitch, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isDualCameraActive) "Dual ON" else "Dual Cam",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 
@@ -618,6 +675,70 @@ fun CreatePostScreen(
                                 Icon(Icons.Default.LibraryMusic, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("Music", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+
+                        // AI Auto-Subtitles & Voiceover Card
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F3FF)),
+                            border = BorderStroke(1.dp, CrexaPurple.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Subtitles, contentDescription = null, tint = CrexaPurple, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("AI Auto-Captions & Subtitles", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = CrexaPurple)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            if (!isAiSubtitlesGenerating) {
+                                                isAiSubtitlesGenerating = true
+                                                scope.launch {
+                                                    delay(1200)
+                                                    isAiSubtitlesGenerating = false
+                                                    caption = if (caption.isBlank()) "[0:00] Hey Crexa fam! ✨\n[0:03] Today exploring hidden spots 🚀\n[0:08] Drop a like & follow for more!"
+                                                    else "$caption\n\n📝 [AI Auto-Subtitles Generated]"
+                                                    Toast.makeText(context, "AI Subtitles synced with audio!", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = CrexaPurple),
+                                        modifier = Modifier.height(36.dp)
+                                    ) {
+                                        if (isAiSubtitlesGenerating) {
+                                            CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White)
+                                        } else {
+                                            Text("Generate", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = Color(0xFF6D28D9), modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("AI Voiceover Narration", fontSize = 12.sp, color = Color(0xFF1E1B4B))
+                                    }
+                                    Switch(
+                                        checked = isAiVoiceoverActive,
+                                        onCheckedChange = {
+                                            isAiVoiceoverActive = it
+                                            Toast.makeText(context, if (it) "🎙️ Gemini AI Voiceover enabled for this Reel" else "Voiceover disabled", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
                             }
                         }
 

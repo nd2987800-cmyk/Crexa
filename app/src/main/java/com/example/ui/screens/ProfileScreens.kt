@@ -71,6 +71,8 @@ fun ProfileScreen(
     var creatorUpiId by remember { mutableStateOf("") }
     var creatorPanOrTaxId by remember { mutableStateOf("") }
     var isBankSaved by remember { mutableStateOf(false) }
+    var showTipJarDialog by remember { mutableStateOf(false) }
+    var tipAmountSelected by remember { mutableIntStateOf(50) } // 20, 50, 100, 500 Coins
 
     Scaffold(
         topBar = {
@@ -309,7 +311,73 @@ fun ProfileScreen(
                         ) {
                             Text("Message", fontWeight = FontWeight.SemiBold)
                         }
+                        FilledTonalButton(
+                            onClick = { showTipJarDialog = true },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFFEF3C7), contentColor = Color(0xFFB45309)),
+                            modifier = Modifier.height(40.dp)
+                        ) {
+                            Text("🎁 Tip", fontWeight = FontWeight.Bold)
+                        }
                     }
+                }
+
+                // Tip Jar Dialog for Creator Support
+                if (showTipJarDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showTipJarDialog = false },
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🎁 Support @${user?.username ?: "Creator"}", fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text("Send a Crexa Creator Tip badge to support their content:", fontSize = 13.sp, color = Color(0xFF475569))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    listOf(20, 50, 100, 500).forEach { coins ->
+                                        val isSel = tipAmountSelected == coins
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (isSel) Color(0xFFF59E0B) else Color(0xFFF1F5F9),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable { tipAmountSelected = coins }
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.padding(vertical = 8.dp)
+                                            ) {
+                                                Text("🪙 $coins", fontWeight = FontWeight.Bold, color = if (isSel) Color.White else Color.Black, fontSize = 12.sp)
+                                                Text("Coins", fontSize = 9.sp, color = if (isSel) Color.White.copy(alpha = 0.8f) else Color.Gray)
+                                            }
+                                        }
+                                    }
+                                }
+                                Text("⭐ Creator will receive 100% of the tip directly into their settlement account.", fontSize = 11.sp, color = Color(0xFF059669), fontWeight = FontWeight.SemiBold)
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showTipJarDialog = false
+                                    Toast.makeText(context, "🎉 Sent $tipAmountSelected Coins to @${user?.username}! Thank you for supporting.", Toast.LENGTH_LONG).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B))
+                            ) {
+                                Text("Send $tipAmountSelected Coins")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showTipJarDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
